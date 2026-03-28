@@ -4,6 +4,7 @@ import { Widget } from '../Widget';
 
 const DEFAULT_CONFIG_URL = `${import.meta.env.BASE_URL}compliments.json`;
 const MESSAGE_ROTATION_MS = 30 * 1000;
+const FADE_DURATION_MS = 1000;
 
 const EMPTY_CONFIG = {
   fallback: [],
@@ -56,6 +57,7 @@ export const Compliments = ({ configUrl, weatherApiKey, location, showFade = fal
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFading, setIsFading] = useState(false);
 
   const sourceUrl = resolveConfigUrl(configUrl);
   const timeBucket = getTimeBucket();
@@ -151,14 +153,25 @@ export const Compliments = ({ configUrl, weatherApiKey, location, showFade = fal
   useEffect(() => {
     if (messages.length <= 1) {
       setCurrentIndex(0);
+      setIsFading(false);
       return;
     }
 
+    let fadeTimeoutId;
+
     const intervalId = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % messages.length);
+      setIsFading(true);
+
+      fadeTimeoutId = setTimeout(() => {
+        setCurrentIndex((prev) => (prev + 1) % messages.length);
+        setIsFading(false);
+      }, FADE_DURATION_MS);
     }, MESSAGE_ROTATION_MS);
 
-    return () => clearInterval(intervalId);
+    return () => {
+      clearInterval(intervalId);
+      clearTimeout(fadeTimeoutId);
+    };
   }, [messages]);
 
   const activeMessage = messages[currentIndex] || messages[0];
@@ -174,6 +187,8 @@ export const Compliments = ({ configUrl, weatherApiKey, location, showFade = fal
             fontWeight: 300,
             lineHeight: 1.3,
             fontFamily: 'monospace, sans-serif',
+            opacity: isFading ? 0 : 1,
+            transition: `opacity ${FADE_DURATION_MS}ms ease-in-out`,
           }}
         >
           {activeMessage}
