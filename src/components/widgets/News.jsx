@@ -14,7 +14,7 @@ export const News = ({ apiKey, showFade = false }) => {
   // Fetch news every 30 minutes
   useEffect(() => {
     if (!apiKey) {
-      setError('API key not configured');
+      setError('API key is not configured to retrieve news');
       setLoading(false);
       return;
     }
@@ -72,7 +72,7 @@ export const News = ({ apiKey, showFade = false }) => {
         <Typography sx={{ color: '#888888' }}>Loading news...</Typography>
       )}
       {error && (
-        <Typography sx={{ color: '#ff6b6b' }}>{error}</Typography>
+        <Typography sx={{ color: '#ff6b6b', textAlign: 'center' }}>{error}</Typography>
       )}
       {!loading && !error && articles.length === 0 && (
         <Typography sx={{ color: '#888888' }}>No articles found</Typography>
