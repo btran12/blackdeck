@@ -9,11 +9,11 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Divider,
   Button,
   Box,
   Stack,
   Typography,
-  Paper,
   Grid,
   Switch,
   FormControlLabel,
@@ -185,331 +185,6 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
 
       <DialogContent sx={{ pt: 2, overflowY: 'auto' }}>
         <Stack spacing={4}>
-          {/* Widget Settings - Two Column Layout */}
-          <Box>
-            <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 2 }}>Widget Settings</Typography>
-            <Grid container spacing={3}>
-              {/* Left Column - Weather & API Keys */}
-              <Grid item xs={12} md={6}>
-                <Stack spacing={3}>
-                  {/* Weather Settings Section */}
-                  <Box>
-                    <Typography sx={{ color: '#aaaaaa', fontWeight: 'bold', mb: 2, fontSize: '0.875rem' }}>Weather</Typography>
-                    <Stack spacing={2}>
-                      <Autocomplete
-                        freeSolo
-                        options={citySuggestions}
-                        value={localSettings.location}
-                        onChange={(event, newValue) => {
-                          handleSettingChange('location', newValue || '');
-                        }}
-                        inputValue={localSettings.location}
-                        onInputChange={handleCityInputChange}
-                        loading={cityLoading}
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            label="Location"
-                            placeholder="Enter city name (e.g., 'New York')"
-                            variant="outlined"
-                            sx={{
-                              '& .MuiOutlinedInput-root': {
-                                color: '#ffffff',
-                                '& fieldset': { borderColor: '#444444' },
-                                '&:hover fieldset': { borderColor: '#555555' },
-                                '&.Mui-focused fieldset': { borderColor: '#2196f3' }
-                              },
-                              '& .MuiInputBase-input::placeholder': { color: '#888888', opacity: 1 },
-                              '& .MuiInputLabel-root': { color: '#cccccc' },
-                            }}
-                          />
-                        )}
-                        slotProps={{
-                          popper: {
-                            modifiers: [
-                              {
-                                name: 'offset',
-                                options: {
-                                  offset: [0, 12],
-                                },
-                              },
-                            ],
-                          },
-                          paper: {
-                            sx: {
-                              bgcolor: '#1a1a1a',
-                              color: '#ffffff',
-                              '& .MuiAutocomplete-listbox': {
-                                '& li': {
-                                  padding: '8px 16px',
-                                  '&[aria-selected="true"]': {
-                                    bgcolor: '#2196f3',
-                                  },
-                                  '&:hover': {
-                                    bgcolor: '#2196f3',
-                                  },
-                                },
-                              },
-                            },
-                          },
-                        }}
-                      />
-
-                      <FormControl variant="outlined">
-                        <InputLabel sx={{ color: '#cccccc' }}>Temperature Unit</InputLabel>
-                        <Select
-                          value={localSettings.tempUnit}
-                          onChange={(e) => handleSettingChange('tempUnit', e.target.value)}
-                          label="Temperature Unit"
-                          sx={{
-                            color: '#ffffff',
-                            '& .MuiOutlinedInput-notchedOutline': { borderColor: '#444444' },
-                            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#555555' },
-                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#2196f3' },
-                            '& .MuiSvgIcon-root': { color: '#ffffff' }
-                          }}
-                        >
-                          <MenuItem value="C">Celsius</MenuItem>
-                          <MenuItem value="F">Fahrenheit</MenuItem>
-                        </Select>
-                      </FormControl>
-
-                      <TextField
-                        fullWidth
-                        label="OpenWeather API Key"
-                        type="password"
-                        value={localSettings.openweatherApiKey}
-                        onChange={(e) => handleSettingChange('openweatherApiKey', e.target.value)}
-                        placeholder="Enter your API key"
-                        variant="outlined"
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            color: '#ffffff',
-                            '& fieldset': { borderColor: '#444444' },
-                            '&:hover fieldset': { borderColor: '#555555' },
-                            '&.Mui-focused fieldset': { borderColor: '#2196f3' }
-                          },
-                          '& .MuiInputBase-input::placeholder': { color: '#888888', opacity: 1 },
-                          '& .MuiInputLabel-root': { color: '#cccccc' },
-                        }}
-                      />
-
-                      {localFadeSettings && (
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={localFadeSettings.weather}
-                              onChange={() => handleFadeToggle('weather')}
-                              sx={{
-                                '& .MuiSwitch-switchBase.Mui-checked': {
-                                  color: '#2196f3',
-                                  '&:hover': { bgcolor: 'rgba(33, 150, 243, 0.08)' }
-                                },
-                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                                  bgcolor: 'rgba(33, 150, 243, 0.3)'
-                                },
-                                '& .MuiSwitch-track': {
-                                  bgcolor: '#444444'
-                                }
-                              }}
-                            />
-                          }
-                          label="Show Fade Effect"
-                          sx={{ color: '#ffffff' }}
-                        />
-                      )}
-                    </Stack>
-                  </Box>
-                </Stack>
-              </Grid>
-
-              {/* Right Column - Clock & News API */}
-              <Grid item xs={12} md={6}>
-                <Stack spacing={3}>
-                  {/* Clock Settings Section */}
-                  <Box>
-                    <Typography sx={{ color: '#aaaaaa', fontWeight: 'bold', mb: 2, fontSize: '0.875rem' }}>Clock</Typography>
-                    <Stack spacing={2}>
-                      <FormControl variant="outlined">
-                        <InputLabel sx={{ color: '#cccccc' }}>Time Format</InputLabel>
-                        <Select
-                          value={localSettings.clockFormat}
-                          onChange={(e) => handleSettingChange('clockFormat', e.target.value)}
-                          label="Time Format"
-                          sx={{
-                            color: '#ffffff',
-                            '& .MuiOutlinedInput-notchedOutline': { borderColor: '#444444' },
-                            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#555555' },
-                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#2196f3' },
-                            '& .MuiSvgIcon-root': { color: '#ffffff' }
-                          }}
-                        >
-                          <MenuItem value="12h">12-Hour Format</MenuItem>
-                          <MenuItem value="24h">24-Hour Format</MenuItem>
-                        </Select>
-                      </FormControl>
-
-                      {localFadeSettings && (
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={localFadeSettings.clock}
-                              onChange={() => handleFadeToggle('clock')}
-                              sx={{
-                                '& .MuiSwitch-switchBase.Mui-checked': {
-                                  color: '#2196f3',
-                                  '&:hover': { bgcolor: 'rgba(33, 150, 243, 0.08)' }
-                                },
-                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                                  bgcolor: 'rgba(33, 150, 243, 0.3)'
-                                },
-                                '& .MuiSwitch-track': {
-                                  bgcolor: '#444444'
-                                }
-                              }}
-                            />
-                          }
-                          label="Show Fade Effect"
-                          sx={{ color: '#ffffff' }}
-                        />
-                      )}
-                    </Stack>
-                  </Box>
-
-                  {/* News Settings Section */}
-                  <Box>
-                    <Typography sx={{ color: '#aaaaaa', fontWeight: 'bold', mb: 2, fontSize: '0.875rem' }}>News</Typography>
-                    <Stack spacing={2}>
-                      <TextField
-                        fullWidth
-                        label="NewsAPI API Key"
-                        type="password"
-                        value={localSettings.newsApiKey}
-                        onChange={(e) => handleSettingChange('newsApiKey', e.target.value)}
-                        placeholder="Enter your API key"
-                        variant="outlined"
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            color: '#ffffff',
-                            '& fieldset': { borderColor: '#444444' },
-                            '&:hover fieldset': { borderColor: '#555555' },
-                            '&.Mui-focused fieldset': { borderColor: '#2196f3' }
-                          },
-                          '& .MuiInputBase-input::placeholder': { color: '#888888', opacity: 1 },
-                          '& .MuiInputLabel-root': { color: '#cccccc' },
-                        }}
-                      />
-
-                      {localFadeSettings && (
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={localFadeSettings.news}
-                              onChange={() => handleFadeToggle('news')}
-                              sx={{
-                                '& .MuiSwitch-switchBase.Mui-checked': {
-                                  color: '#2196f3',
-                                  '&:hover': { bgcolor: 'rgba(33, 150, 243, 0.08)' }
-                                },
-                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                                  bgcolor: 'rgba(33, 150, 243, 0.3)'
-                                },
-                                '& .MuiSwitch-track': {
-                                  bgcolor: '#444444'
-                                }
-                              }}
-                            />
-                          }
-                          label="Show Fade Effect"
-                          sx={{ color: '#ffffff' }}
-                        />
-                      )}
-                    </Stack>
-                  </Box>
-
-                  {/* Compliments Settings Section */}
-                  <Box>
-                    <Typography sx={{ color: '#aaaaaa', fontWeight: 'bold', mb: 2, fontSize: '0.875rem' }}>Compliments</Typography>
-                    <Stack spacing={2}>
-                      <TextField
-                        fullWidth
-                        label="Compliments JSON URL"
-                        type="text"
-                        value={localSettings.complimentsConfigUrl || ''}
-                        onChange={(e) => handleSettingChange('complimentsConfigUrl', e.target.value)}
-                        placeholder="Optional. Leave empty to use /compliments.json"
-                        helperText="Expected format: { fallback: [], timeOfDay: { morning: [] }, weather: { clear: [] } }"
-                        variant="outlined"
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            color: '#ffffff',
-                            '& fieldset': { borderColor: '#444444' },
-                            '&:hover fieldset': { borderColor: '#555555' },
-                            '&.Mui-focused fieldset': { borderColor: '#2196f3' }
-                          },
-                          '& .MuiInputBase-input::placeholder': { color: '#888888', opacity: 1 },
-                          '& .MuiInputLabel-root': { color: '#cccccc' },
-                          '& .MuiFormHelperText-root': { color: '#999999' },
-                        }}
-                      />
-
-                      {localFadeSettings && (
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={localFadeSettings.compliments}
-                              onChange={() => handleFadeToggle('compliments')}
-                              sx={{
-                                '& .MuiSwitch-switchBase.Mui-checked': {
-                                  color: '#2196f3',
-                                  '&:hover': { bgcolor: 'rgba(33, 150, 243, 0.08)' }
-                                },
-                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                                  bgcolor: 'rgba(33, 150, 243, 0.3)'
-                                },
-                                '& .MuiSwitch-track': {
-                                  bgcolor: '#444444'
-                                }
-                              }}
-                            />
-                          }
-                          label="Show Fade Effect"
-                          sx={{ color: '#ffffff' }}
-                        />
-                      )}
-                    </Stack>
-                  </Box>
-
-                  {/* Calendar Settings Section */}
-                  <Box>
-                    <Typography sx={{ color: '#aaaaaa', fontWeight: 'bold', mb: 2, fontSize: '0.875rem' }}>Calendar</Typography>
-                    <Stack spacing={2}>
-                      <TextField
-                        fullWidth
-                        label="Calendar ICS URL"
-                        type="text"
-                        value={localSettings.icsUrl}
-                        onChange={(e) => handleSettingChange('icsUrl', e.target.value)}
-                        placeholder="https://calendar.google.com/calendar/ical/.../basic.ics"
-                        variant="outlined"
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            color: '#ffffff',
-                            '& fieldset': { borderColor: '#444444' },
-                            '&:hover fieldset': { borderColor: '#555555' },
-                            '&.Mui-focused fieldset': { borderColor: '#2196f3' }
-                          },
-                          '& .MuiInputBase-input::placeholder': { color: '#888888', opacity: 1 },
-                          '& .MuiInputLabel-root': { color: '#cccccc' },
-                        }}
-                      />
-                    </Stack>
-                  </Box>
-                </Stack>
-              </Grid>
-            </Grid>
-          </Box>
-
           {/* Layout Settings Section */}
           <Box>
             <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 3 }}>Dashboard Layout</Typography>
@@ -518,7 +193,7 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                 const colWidths = row.cols === '12' ? [12] : [3, 6, 3];
                 return (
                   <Box key={row.row}>
-                    <Typography sx={{ color: '#aaaaaa', fontSize: '0.875rem', mb: 1 }}>Row {row.row} ({row.cols})</Typography>
+                    <Typography sx={{ color: '#ffffff', fontSize: '1rem', mb: 1 }}>Row {row.row} ({row.cols})</Typography>
                     <Grid container spacing={2}>
                       {row.positions.map((position, index) => (
                         <Grid item xs={12} md={colWidths[index]} key={position}>
@@ -552,6 +227,320 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
             </Stack>
           </Box>
 
+          {/* Widget Settings */}
+          <Box>
+            <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 2 }}>Widget Settings</Typography>
+            <Stack spacing={3} divider={<Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.12)' }} />}>
+              {/* Weather Settings Section */}
+              <Box>
+                <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 2, fontSize: '1rem', textAlign: 'center' }}>Weather</Typography>
+                <Stack spacing={2}>
+                  <Autocomplete
+                    freeSolo
+                    options={citySuggestions}
+                    value={localSettings.location}
+                    onChange={(event, newValue) => {
+                      handleSettingChange('location', newValue || '');
+                    }}
+                    inputValue={localSettings.location}
+                    onInputChange={handleCityInputChange}
+                    loading={cityLoading}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Location"
+                        placeholder="Enter city name (e.g., 'New York')"
+                        variant="outlined"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            color: '#ffffff',
+                            '& fieldset': { borderColor: '#444444' },
+                            '&:hover fieldset': { borderColor: '#555555' },
+                            '&.Mui-focused fieldset': { borderColor: '#2196f3' }
+                          },
+                          '& .MuiInputBase-input::placeholder': { color: '#888888', opacity: 1 },
+                          '& .MuiInputLabel-root': { color: '#cccccc' },
+                        }}
+                      />
+                    )}
+                    slotProps={{
+                      popper: {
+                        modifiers: [
+                          {
+                            name: 'offset',
+                            options: {
+                              offset: [0, 12],
+                            },
+                          },
+                        ],
+                      },
+                      paper: {
+                        sx: {
+                          bgcolor: '#1a1a1a',
+                          color: '#ffffff',
+                          '& .MuiAutocomplete-listbox': {
+                            '& li': {
+                              padding: '8px 16px',
+                              '&[aria-selected="true"]': {
+                                bgcolor: '#2196f3',
+                              },
+                              '&:hover': {
+                                bgcolor: '#2196f3',
+                              },
+                            },
+                          },
+                        },
+                      },
+                    }}
+                  />
+
+                  <FormControl variant="outlined">
+                    <InputLabel sx={{ color: '#cccccc' }}>Temperature Unit</InputLabel>
+                    <Select
+                      value={localSettings.tempUnit}
+                      onChange={(e) => handleSettingChange('tempUnit', e.target.value)}
+                      label="Temperature Unit"
+                      sx={{
+                        color: '#ffffff',
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#444444' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#555555' },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#2196f3' },
+                        '& .MuiSvgIcon-root': { color: '#ffffff' }
+                      }}
+                    >
+                      <MenuItem value="C">Celsius</MenuItem>
+                      <MenuItem value="F">Fahrenheit</MenuItem>
+                    </Select>
+                  </FormControl>
+
+                  <TextField
+                    fullWidth
+                    label="OpenWeather API Key"
+                    type="password"
+                    value={localSettings.openweatherApiKey}
+                    onChange={(e) => handleSettingChange('openweatherApiKey', e.target.value)}
+                    placeholder="Enter your API key"
+                    variant="outlined"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        color: '#ffffff',
+                        '& fieldset': { borderColor: '#444444' },
+                        '&:hover fieldset': { borderColor: '#555555' },
+                        '&.Mui-focused fieldset': { borderColor: '#2196f3' }
+                      },
+                      '& .MuiInputBase-input::placeholder': { color: '#888888', opacity: 1 },
+                      '& .MuiInputLabel-root': { color: '#cccccc' },
+                    }}
+                  />
+
+                  {localFadeSettings && (
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={localFadeSettings.weather}
+                          onChange={() => handleFadeToggle('weather')}
+                          sx={{
+                            '& .MuiSwitch-switchBase.Mui-checked': {
+                              color: '#2196f3',
+                              '&:hover': { bgcolor: 'rgba(33, 150, 243, 0.08)' }
+                            },
+                            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                              bgcolor: 'rgba(33, 150, 243, 0.3)'
+                            },
+                            '& .MuiSwitch-track': {
+                              bgcolor: '#444444'
+                            }
+                          }}
+                        />
+                      }
+                      label="Show Fade Effect"
+                      sx={{ color: '#ffffff' }}
+                    />
+                  )}
+                </Stack>
+              </Box>
+
+              {/* Clock Settings Section */}
+              <Box>
+                <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 2, fontSize: '1rem', textAlign: 'center' }}>Clock</Typography>
+                <Stack spacing={2}>
+                  <FormControl variant="outlined">
+                    <InputLabel sx={{ color: '#cccccc' }}>Time Format</InputLabel>
+                    <Select
+                      value={localSettings.clockFormat}
+                      onChange={(e) => handleSettingChange('clockFormat', e.target.value)}
+                      label="Time Format"
+                      sx={{
+                        color: '#ffffff',
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#444444' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#555555' },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#2196f3' },
+                        '& .MuiSvgIcon-root': { color: '#ffffff' }
+                      }}
+                    >
+                      <MenuItem value="12h">12-Hour Format</MenuItem>
+                      <MenuItem value="24h">24-Hour Format</MenuItem>
+                    </Select>
+                  </FormControl>
+
+                  {localFadeSettings && (
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={localFadeSettings.clock}
+                          onChange={() => handleFadeToggle('clock')}
+                          sx={{
+                            '& .MuiSwitch-switchBase.Mui-checked': {
+                              color: '#2196f3',
+                              '&:hover': { bgcolor: 'rgba(33, 150, 243, 0.08)' }
+                            },
+                            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                              bgcolor: 'rgba(33, 150, 243, 0.3)'
+                            },
+                            '& .MuiSwitch-track': {
+                              bgcolor: '#444444'
+                            }
+                          }}
+                        />
+                      }
+                      label="Show Fade Effect"
+                      sx={{ color: '#ffffff' }}
+                    />
+                  )}
+                </Stack>
+              </Box>
+
+              {/* News Settings Section */}
+              <Box>
+                <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 2, fontSize: '1rem', textAlign: 'center' }}>News</Typography>
+                <Stack spacing={2}>
+                  <TextField
+                    fullWidth
+                    label="NewsAPI API Key"
+                    type="password"
+                    value={localSettings.newsApiKey}
+                    onChange={(e) => handleSettingChange('newsApiKey', e.target.value)}
+                    placeholder="Enter your API key"
+                    variant="outlined"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        color: '#ffffff',
+                        '& fieldset': { borderColor: '#444444' },
+                        '&:hover fieldset': { borderColor: '#555555' },
+                        '&.Mui-focused fieldset': { borderColor: '#2196f3' }
+                      },
+                      '& .MuiInputBase-input::placeholder': { color: '#888888', opacity: 1 },
+                      '& .MuiInputLabel-root': { color: '#cccccc' },
+                    }}
+                  />
+
+                  {localFadeSettings && (
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={localFadeSettings.news}
+                          onChange={() => handleFadeToggle('news')}
+                          sx={{
+                            '& .MuiSwitch-switchBase.Mui-checked': {
+                              color: '#2196f3',
+                              '&:hover': { bgcolor: 'rgba(33, 150, 243, 0.08)' }
+                            },
+                            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                              bgcolor: 'rgba(33, 150, 243, 0.3)'
+                            },
+                            '& .MuiSwitch-track': {
+                              bgcolor: '#444444'
+                            }
+                          }}
+                        />
+                      }
+                      label="Show Fade Effect"
+                      sx={{ color: '#ffffff' }}
+                    />
+                  )}
+                </Stack>
+              </Box>
+
+              {/* Compliments Settings Section */}
+              <Box>
+                <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 2, fontSize: '1rem', textAlign: 'center' }}>Compliments</Typography>
+                <Stack spacing={2}>
+                  <TextField
+                    fullWidth
+                    label="Compliments JSON URL"
+                    type="text"
+                    value={localSettings.complimentsConfigUrl || ''}
+                    onChange={(e) => handleSettingChange('complimentsConfigUrl', e.target.value)}
+                    placeholder="Optional. Leave empty to use /compliments.json"
+                    helperText="Expected format: { fallback: [], timeOfDay: { morning: [] }, weather: { clear: [] } }"
+                    variant="outlined"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        color: '#ffffff',
+                        '& fieldset': { borderColor: '#444444' },
+                        '&:hover fieldset': { borderColor: '#555555' },
+                        '&.Mui-focused fieldset': { borderColor: '#2196f3' }
+                      },
+                      '& .MuiInputBase-input::placeholder': { color: '#888888', opacity: 1 },
+                      '& .MuiInputLabel-root': { color: '#cccccc' },
+                      '& .MuiFormHelperText-root': { color: '#999999' },
+                    }}
+                  />
+
+                  {localFadeSettings && (
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={localFadeSettings.compliments}
+                          onChange={() => handleFadeToggle('compliments')}
+                          sx={{
+                            '& .MuiSwitch-switchBase.Mui-checked': {
+                              color: '#2196f3',
+                              '&:hover': { bgcolor: 'rgba(33, 150, 243, 0.08)' }
+                            },
+                            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                              bgcolor: 'rgba(33, 150, 243, 0.3)'
+                            },
+                            '& .MuiSwitch-track': {
+                              bgcolor: '#444444'
+                            }
+                          }}
+                        />
+                      }
+                      label="Show Fade Effect"
+                      sx={{ color: '#ffffff' }}
+                    />
+                  )}
+                </Stack>
+              </Box>
+
+              {/* Calendar Settings Section */}
+              <Box>
+                <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 2, fontSize: '1rem', textAlign: 'center' }}>Calendar</Typography>
+                <Stack spacing={2}>
+                  <TextField
+                    fullWidth
+                    label="Calendar ICS URL"
+                    type="text"
+                    value={localSettings.icsUrl}
+                    onChange={(e) => handleSettingChange('icsUrl', e.target.value)}
+                    placeholder="https://calendar.google.com/calendar/ical/.../basic.ics"
+                    variant="outlined"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        color: '#ffffff',
+                        '& fieldset': { borderColor: '#444444' },
+                        '&:hover fieldset': { borderColor: '#555555' },
+                        '&.Mui-focused fieldset': { borderColor: '#2196f3' }
+                      },
+                      '& .MuiInputBase-input::placeholder': { color: '#888888', opacity: 1 },
+                      '& .MuiInputLabel-root': { color: '#cccccc' },
+                    }}
+                  />
+                </Stack>
+              </Box>
+            </Stack>
+          </Box>
 
         </Stack>
       </DialogContent>
