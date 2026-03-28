@@ -40,7 +40,7 @@ export const News = ({ apiKey }) => {
   }, [apiKey]);
 
   return (
-    <Widget title="Top Headlines">
+    <Widget title="Top Headlines" widgetType="news">
       {loading && <div className="text-gray-400">Loading news...</div>}
       {error && <div className="text-red-400 text-sm">{error}</div>}
       {!loading && !error && (

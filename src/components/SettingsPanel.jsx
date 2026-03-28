@@ -14,7 +14,9 @@ import {
   Stack,
   Typography,
   Paper,
-  Grid
+  Grid,
+  Switch,
+  FormControlLabel
 } from '@mui/material';
 import { WidgetContext } from '../context/WidgetContext';
 
@@ -33,9 +35,10 @@ const GRID_LAYOUT = [
 ];
 
 export const SettingsPanel = ({ isOpen, onClose }) => {
-  const { settings, updateSettings, layout, updateLayout } = useContext(WidgetContext);
+  const { settings, updateSettings, layout, updateLayout, fadeSettings, updateFadeSettings } = useContext(WidgetContext);
   const [localSettings, setLocalSettings] = useState(settings);
   const [localLayout, setLocalLayout] = useState(layout.widgets);
+  const [localFadeSettings, setLocalFadeSettings] = useState(fadeSettings || { clock: true, weather: true, calendar: true, news: true });
 
   const handleSettingChange = (key, value) => {
     setLocalSettings(prev => ({
@@ -50,9 +53,17 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
     setLocalLayout(newLayout);
   };
 
+  const handleFadeToggle = (widgetType) => {
+    setLocalFadeSettings(prev => ({
+      ...prev,
+      [widgetType]: !prev[widgetType]
+    }));
+  };
+
   const handleSave = () => {
     updateSettings(localSettings);
     updateLayout(localLayout);
+    updateFadeSettings(localFadeSettings);
     onClose();
   };
 
@@ -233,6 +244,40 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
               ))}
             </Stack>
           </Box>
+
+          {/* Widget Fade Effects Section */}
+          {localFadeSettings && (
+            <Box>
+              <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 2 }}>Widget Fade Effects</Typography>
+              <Stack spacing={1}>
+                {Object.keys(localFadeSettings).map((widget) => (
+                  <FormControlLabel
+                    key={widget}
+                    control={
+                      <Switch
+                        checked={localFadeSettings[widget]}
+                        onChange={() => handleFadeToggle(widget)}
+                        sx={{
+                          '& .MuiSwitch-switchBase.Mui-checked': {
+                            color: '#2196f3',
+                            '&:hover': { bgcolor: 'rgba(33, 150, 243, 0.08)' }
+                          },
+                          '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                            bgcolor: 'rgba(33, 150, 243, 0.3)'
+                          },
+                          '& .MuiSwitch-track': {
+                            bgcolor: '#444444'
+                          }
+                        }}
+                      />
+                    }
+                    label={widget.charAt(0).toUpperCase() + widget.slice(1) + ' Fade'}
+                    sx={{ color: '#ffffff' }}
+                  />
+                ))}
+              </Stack>
+            </Box>
+          )}
         </Stack>
       </DialogContent>
 

@@ -150,11 +150,11 @@ export const Weather = ({ apiKey, location }) => {
   };
 
   return (
-    <Widget>
+    <Widget widgetType="weather">
       {loading && <Typography sx={{ color: '#ffffff' }}>Loading weather...</Typography>}
       {error && <Typography sx={{ color: '#ff6b6b' }}>{error}</Typography>}
       {weather && (
-        <Stack spacing={2}>
+        <Stack spacing={-1.25}>
           {/* Header - Wind and Sunrise/Sunset */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', pb: 1.5 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

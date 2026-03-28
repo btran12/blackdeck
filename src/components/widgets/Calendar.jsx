@@ -31,7 +31,7 @@ export const Calendar = () => {
   const today = new Date().getDate();
 
   return (
-    <Widget title="Calendar">
+    <Widget title="Calendar" widgetType="calendar">
       <div className="flex flex-col gap-4">
         <div className="text-center font-semibold text-lg">{monthName}</div>
         

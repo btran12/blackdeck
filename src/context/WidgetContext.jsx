@@ -18,22 +18,49 @@ export const WidgetProvider = ({ children }) => {
     clockFormat: localStorage.getItem('clockFormat') || '24h',
   });
 
-  const [layout, setLayout] = useState({
-    // 3x3 grid with 3-6-3 column configuration
-    // Row 1: positions 0 (col 3), 1 (col 6), 2 (col 3)
-    // Row 2: positions 3 (col 3), 4 (col 6), 5 (col 3)
-    // Row 3: positions 6 (col 3), 7 (col 6), 8 (col 3)
-    widgets: JSON.parse(localStorage.getItem('layout')) || [
-      'clock',     // position 0
-      'weather',   // position 1
-      'calendar',  // position 2
-      null,        // position 3
-      null,        // position 4
-      null,        // position 5
-      null,        // position 6
-      null,        // position 7
-      null,        // position 8
-    ]
+  const [fadeSettings, setFadeSettings] = useState(() => {
+    try {
+      const stored = localStorage.getItem('fadeSettings');
+      return stored ? JSON.parse(stored) : { clock: true, weather: true, calendar: true, news: true };
+    } catch (e) {
+      console.error('Error parsing fadeSettings from localStorage:', e);
+      return { clock: true, weather: true, calendar: true, news: true };
+    }
+  });
+
+  const [layout, setLayout] = useState(() => {
+    try {
+      const stored = localStorage.getItem('layout');
+      const defaultLayout = [
+        'clock',     // position 0
+        'weather',   // position 1
+        'calendar',  // position 2
+        null,        // position 3
+        null,        // position 4
+        null,        // position 5
+        null,        // position 6
+        null,        // position 7
+        null,        // position 8
+      ];
+      return {
+        widgets: stored ? JSON.parse(stored) : defaultLayout
+      };
+    } catch (e) {
+      console.error('Error parsing layout from localStorage:', e);
+      return {
+        widgets: [
+          'clock',     // position 0
+          'weather',   // position 1
+          'calendar',  // position 2
+          null,        // position 3
+          null,        // position 4
+          null,        // position 5
+          null,        // position 6
+          null,        // position 7
+          null,        // position 8
+        ]
+      };
+    }
   });
 
   const [notifications, setNotifications] = useState([]);
@@ -63,6 +90,12 @@ export const WidgetProvider = ({ children }) => {
     addNotification('Layout saved', 'success');
   }, [addNotification]);
 
+  const updateFadeSettings = useCallback((newFadeSettings) => {
+    setFadeSettings(newFadeSettings);
+    localStorage.setItem('fadeSettings', JSON.stringify(newFadeSettings));
+    addNotification('Fade settings updated', 'success');
+  }, [addNotification]);
+
   const removeNotification = useCallback((id) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
   }, []);
@@ -74,6 +107,8 @@ export const WidgetProvider = ({ children }) => {
     updateSettings,
     layout,
     updateLayout,
+    fadeSettings,
+    updateFadeSettings,
     notifications,
     addNotification,
     removeNotification,

@@ -33,8 +33,8 @@ export const Clock = () => {
   });
 
   return (
-    <Widget>
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+    <Widget widgetType="clock">
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start'}}>
         {/* Date */}
         <Typography fontWeight={'light'} fontSize={'1.75rem'} fontFamily={'monospace'} color={'#888888'}>
           {dateString}
