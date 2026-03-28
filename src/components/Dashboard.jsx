@@ -12,7 +12,7 @@ import { WidgetContext } from '../context/WidgetContext';
 const GRID_ROWS = [
   { row: 1, colSpans: [3, 6, 3], positions: [0, 1, 2] },
   { row: 2, colSpans: [3, 6, 3], positions: [3, 4, 5] },
-  { row: 3, colSpans: [3, 6, 3], positions: [6, 7, 8] },
+  { row: 3, colSpans: [12], positions: [6] },
 ];
 
 const WIDGET_COMPONENTS = {

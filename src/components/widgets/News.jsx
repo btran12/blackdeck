@@ -104,16 +104,16 @@ export const News = ({ apiKey }) => {
               color: '#ffffff',
               lineHeight: 1.2,
               fontFamily: 'monospace',
-              letterSpacing: '1px',
               opacity: isFading ? 0 : 1,
               transition: 'opacity 0.5s ease-in-out',
+              textAlign: 'center',
             }}
           >
             {currentArticle.title}
           </Typography>
 
           {/* Article counter */}
-          <Box sx={{ opacity: isFading ? 0 : 1, transition: 'opacity 0.5s ease-in-out' }}>
+          <Box sx={{ opacity: isFading ? 0 : 1, transition: 'opacity 0.5s ease-in-out', textAlign: 'center' }}>
             <Typography sx={{ fontSize: '0.75rem', color: '#888888' }}>
               {currentIndex + 1} of {articles.length}
             </Typography>

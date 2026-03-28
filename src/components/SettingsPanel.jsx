@@ -31,7 +31,7 @@ const WIDGET_OPTIONS = [
 const GRID_LAYOUT = [
   { row: 1, cols: '3-6-3', positions: [0, 1, 2] },
   { row: 2, cols: '3-6-3', positions: [3, 4, 5] },
-  { row: 3, cols: '3-6-3', positions: [6, 7, 8] },
+  { row: 3, cols: '12', positions: [6] },
 ];
 
 export const SettingsPanel = ({ isOpen, onClose }) => {
@@ -205,16 +205,16 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
 
           {/* Layout Settings Section */}
           <Box>
-            <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 3 }}>Dashboard Layout (3-6-3 Grid)</Typography>
+            <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 3 }}>Dashboard Layout</Typography>
             <Stack spacing={3}>
-              {GRID_LAYOUT.map((row) => (
-                <Box key={row.row}>
-                  <Typography sx={{ color: '#aaaaaa', fontSize: '0.875rem', mb: 1 }}>Row {row.row}</Typography>
-                  <Grid container spacing={2}>
-                    {row.positions.map((position, index) => {
-                      const colWidth = [3, 6, 3];
-                      return (
-                        <Grid item xs={12} md={colWidth[index]} key={position}>
+              {GRID_LAYOUT.map((row) => {
+                const colWidths = row.cols === '12' ? [12] : [3, 6, 3];
+                return (
+                  <Box key={row.row}>
+                    <Typography sx={{ color: '#aaaaaa', fontSize: '0.875rem', mb: 1 }}>Row {row.row} ({row.cols})</Typography>
+                    <Grid container spacing={2}>
+                      {row.positions.map((position, index) => (
+                        <Grid item xs={12} md={colWidths[index]} key={position}>
                           <FormControl sx={{ minWidth: '150px' }} size="small" variant="outlined">
                             <InputLabel sx={{ color: '#cccccc' }}>Column {index + 1}</InputLabel>
                             <Select
@@ -237,11 +237,11 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                             </Select>
                           </FormControl>
                         </Grid>
-                      );
-                    })}
-                  </Grid>
-                </Box>
-              ))}
+                      ))}
+                    </Grid>
+                  </Box>
+                );
+              })}
             </Stack>
           </Box>
 
