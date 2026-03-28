@@ -62,6 +62,16 @@ const GRID_LAYOUT = [
   { row: 3, cols: '12', positions: [6] },
 ];
 
+const POSITION_LABELS = {
+  0: 'Top Left',
+  1: 'Top Middle',
+  2: 'Top Right',
+  3: 'Middle Left',
+  4: 'Middle Middle',
+  5: 'Middle Right',
+  6: 'Bottom',
+};
+
 const DEFAULT_WIDGET_FADE = {
   clock: false,
   weather: true,
@@ -184,18 +194,7 @@ const buildSettingsDefaultsFromInstances = (layoutWidgets, widgetSettingsMap, pr
 };
 
 const getPositionLabel = (position) => {
-  for (const row of GRID_LAYOUT) {
-    const index = row.positions.indexOf(position);
-    if (index === -1) continue;
-
-    if (row.cols === '12') {
-      return `Row ${row.row}`;
-    }
-
-    return `Row ${row.row}, Column ${index + 1}`;
-  }
-
-  return `Position ${position + 1}`;
+  return POSITION_LABELS[position] || `Position ${position + 1}`;
 };
 
 export const SettingsPanel = ({ isOpen, onClose }) => {
@@ -563,16 +562,18 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                 const colWidths = row.cols === '12' ? [12] : [3, 6, 3];
                 return (
                   <Box key={row.row}>
-                    <Typography sx={{ color: '#ffffff', fontSize: '1rem', mb: 1 }}>Row {row.row} ({row.cols})</Typography>
+                    <Typography sx={{ color: '#ffffff', fontSize: '1rem', mb: 1 }}>
+                      {row.cols === '12' ? 'Bottom Row' : row.row === 1 ? 'Top Row' : 'Middle Row'}
+                    </Typography>
                     <Grid container spacing={2}>
                       {row.positions.map((position, index) => (
                         <Grid item xs={12} md={colWidths[index]} key={position}>
                           <FormControl sx={{ minWidth: '150px' }} size="small" variant="outlined">
-                            <InputLabel sx={{ color: '#cccccc' }}>Column {index + 1}</InputLabel>
+                            <InputLabel sx={{ color: '#cccccc' }}>{getPositionLabel(position)}</InputLabel>
                             <Select
                               value={localLayout[position] || ''}
                               onChange={(e) => handleLayoutChange(position, e.target.value || null)}
-                              label={`Column ${index + 1}`}
+                              label={getPositionLabel(position)}
                               sx={selectStyles}
                             >
                               {WIDGET_OPTIONS.map((option) => (
