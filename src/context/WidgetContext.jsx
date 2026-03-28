@@ -16,6 +16,7 @@ export const WidgetProvider = ({ children }) => {
     location: localStorage.getItem('location') || 'New York, New York',
     tempUnit: localStorage.getItem('tempUnit') || 'F',
     clockFormat: localStorage.getItem('clockFormat') || '24h',
+    icsUrl: localStorage.getItem('icsUrl') || '',
   });
 
   const [fadeSettings, setFadeSettings] = useState(() => {

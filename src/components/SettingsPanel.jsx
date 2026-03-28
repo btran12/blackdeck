@@ -424,6 +424,32 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                       )}
                     </Stack>
                   </Box>
+
+                  {/* Calendar Settings Section */}
+                  <Box>
+                    <Typography sx={{ color: '#aaaaaa', fontWeight: 'bold', mb: 2, fontSize: '0.875rem' }}>Calendar</Typography>
+                    <Stack spacing={2}>
+                      <TextField
+                        fullWidth
+                        label="Calendar ICS URL"
+                        type="text"
+                        value={localSettings.icsUrl}
+                        onChange={(e) => handleSettingChange('icsUrl', e.target.value)}
+                        placeholder="https://calendar.google.com/calendar/ical/.../basic.ics"
+                        variant="outlined"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            color: '#ffffff',
+                            '& fieldset': { borderColor: '#444444' },
+                            '&:hover fieldset': { borderColor: '#555555' },
+                            '&.Mui-focused fieldset': { borderColor: '#2196f3' }
+                          },
+                          '& .MuiInputBase-input::placeholder': { color: '#888888', opacity: 1 },
+                          '& .MuiInputLabel-root': { color: '#cccccc' },
+                        }}
+                      />
+                    </Stack>
+                  </Box>
                 </Stack>
               </Grid>
             </Grid>
