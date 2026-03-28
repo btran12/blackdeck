@@ -154,18 +154,18 @@ export const Weather = ({ apiKey, location }) => {
       {loading && <Typography sx={{ color: '#ffffff' }}>Loading weather...</Typography>}
       {error && <Typography sx={{ color: '#ff6b6b' }}>{error}</Typography>}
       {weather && (
-        <Stack spacing={-1.25}>
+        <Stack spacing={-1}>
           {/* Header - Wind and Sunrise/Sunset */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', pb: 1.5 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'right', alignItems: 'center', pb: 1.5, gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <AirOutlinedIcon sx={{ fontSize: 16, color: '#aaaaaa' }} />
-              <Typography sx={{ fontSize: '0.75rem', color: '#aaaaaa' }}>
+              <Typography sx={{ fontSize: '1rem', color: '#aaaaaa' }}>
                 {getWindDirection()} {Math.round(weather.wind.speed)}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               {React.cloneElement(getSunriseSunsetInfo().icon, { sx: { fontSize: 16, color: '#aaaaaa' } })}
-              <Typography sx={{ fontSize: '0.75rem', color: '#aaaaaa' }}>
+              <Typography sx={{ fontSize: '1rem', color: '#aaaaaa' }}>
                 {getSunriseSunsetInfo().time}
               </Typography>
             </Box>
@@ -188,13 +188,13 @@ export const Weather = ({ apiKey, location }) => {
 
           {/* Forecast Title */}
           {forecast && (
-            <Box>
-              <Typography sx={{ fontSize: '0.75rem', color: '#888888', fontWeight: '500', mb: 1.5, pt: 1, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+            <Box >
+              <Typography sx={{ textAlign: 'right', fontSize: '0.75rem', color: '#888888', fontWeight: '500', mt: 1.5, mb: 1.5, pt: 1, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                 WEATHER FORECAST {location.toUpperCase()}
               </Typography>
 
               {/* Forecast Table */}
-              <Stack spacing={0.8}>
+              <Stack>
                 {getDailyForecast().map((item, index) => (
                   <Box
                     key={index}
