@@ -21,6 +21,7 @@ const LEGACY_FADE_SETTINGS = {
   news: false,
   compliments: false,
   stocks: false,
+  sports: false,
 };
 
 const getInitialSettings = () => ({
@@ -104,6 +105,13 @@ const createWidgetSettingsForType = (widgetType, settings, fadeSettings) => {
         finnhubApiKey: settings.finnhubApiKey,
         stockTickers: [],
         showFade: fadeSettings.stocks,
+      };
+    case 'sports':
+      return {
+        widgetType,
+        sportsLeagues: [],
+        sportsTeams: '',
+        showFade: fadeSettings.sports,
       };
     default:
       return {

@@ -7,6 +7,7 @@ import { Calendar } from './widgets/Calendar';
 import { News } from './widgets/News';
 import { Compliments } from './widgets/Compliments';
 import { Stocks } from './widgets/Stocks';
+import { Sports } from './widgets/Sports';
 import { Notifications } from './Notifications';
 import { SettingsPanel } from './SettingsPanel';
 import { WidgetContext } from '../context/WidgetContext';
@@ -24,6 +25,7 @@ const WIDGET_COMPONENTS = {
   news: News,
   compliments: Compliments,
   stocks: Stocks,
+  sports: Sports,
 };
 
 export const Dashboard = () => {
@@ -66,6 +68,14 @@ export const Dashboard = () => {
       return <WidgetComponent clockFormat={widgetSettings.clockFormat} showFade={widgetSettings.showFade} />;
     } else if (widgetType === 'stocks') {
       return <WidgetComponent apiKey={widgetSettings.finnhubApiKey} tickers={widgetSettings.stockTickers || []} showFade={widgetSettings.showFade} />;
+    } else if (widgetType === 'sports') {
+      return (
+        <WidgetComponent
+          leagues={widgetSettings.sportsLeagues || []}
+          teams={widgetSettings.sportsTeams || ''}
+          showFade={widgetSettings.showFade}
+        />
+      );
     } else {
       return <WidgetComponent />;
     }
