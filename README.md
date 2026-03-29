@@ -16,7 +16,8 @@ A modern, interactive dashboard application built with React and Vite that displ
 - **Clock** 🕐 - Real-time clock with 12/24 format toggle
 - **Weather** 🌤️ - Current conditions and forecasts via OpenWeatherMap
 - **Calendar** 📅 - Interactive monthly calendar with date highlighting
-- **News** 📰 - Latest headlines from NewsAPI
+- **News** 📰 - Headlines merged from Currents API (primary) and Reddit (fallback/supplement)
+- **Reddit** 👽 - Configurable subreddit post-title rotator
 - **Stocks** 📈 - Stock ticker prices from Finnhub
 - **Crypto** 💰 - Cryptocurrency prices and updates
 - **Sports** ⚽ - Sports scores and updates
@@ -37,6 +38,8 @@ A modern, interactive dashboard application built with React and Vite that displ
 - **Settings Auto-Hide**: Settings button fades after 5 seconds of mouse inactivity
 - **Persistent Configuration**: All settings saved to localStorage
 - **Smooth Animations**: CSS transitions for all interactions
+- **News Aggregation**: News widget merges multiple sources and rotates up to 30 headlines
+- **Reddit Scheduling Controls**: Poll interval, rotation interval, and per-subreddit title count are configurable
 
 ## 🚀 Quick Start
 
@@ -79,11 +82,21 @@ The application requires API keys from various services. You can set them global
 3. Copy your API key from account settings
 4. Add to Settings panel under "Weather API Key"
 
-### NewsAPI (News Widget)
-1. Visit [newsapi.org](https://newsapi.org)
+### Currents API (News Widget - Primary)
+1. Visit [currentsapi.services](https://currentsapi.services)
 2. Create a free account
 3. Copy your API key from the dashboard
-4. Add to Settings panel under "News API Key"
+4. Add to Settings panel under "Currents API Key"
+
+### TheNewsAPI (News Widget - Optional)
+1. Visit [thenewsapi.com](https://www.thenewsapi.com)
+2. Create a free account
+3. Copy your API key from the dashboard
+4. Add to Settings panel under "TheNewsAPI Key" (optional fallback)
+
+### Reddit API (News + Reddit Widgets)
+- Public Reddit endpoints used in this project do not require an API key.
+- The app fetches post titles from configured public subreddits.
 
 ### Finnhub (Stocks Widget)
 1. Visit [finnhub.io](https://finnhub.io)
@@ -101,11 +114,14 @@ react-magicmirror/
 │   │   ├── SettingsPanel.jsx          # Settings and configuration modal
 │   │   ├── Notifications.jsx          # Toast notification system
 │   │   ├── Widget.jsx                 # Base widget wrapper
+│   │   ├── WidgetSettingsForm.jsx     # Per-widget configuration form
+│   │   ├── widgetConfig.js            # Widget metadata & layout presets
 │   │   └── widgets/
 │   │       ├── Clock.jsx
 │   │       ├── Weather.jsx
 │   │       ├── Calendar.jsx
 │   │       ├── News.jsx
+│   │       ├── Reddit.jsx
 │   │       ├── Stocks.jsx
 │   │       ├── Crypto.jsx
 │   │       ├── Sports.jsx
@@ -115,8 +131,6 @@ react-magicmirror/
 │   │   └── WidgetContext.jsx          # Global state management
 │   ├── hooks/
 │   │   └── useAPI.js                  # Custom API fetching hook
-│   ├── config/
-│   │   └── widgetConfig.js            # Widget metadata & layout presets
 │   ├── App.jsx
 │   ├── App.css
 │   ├── index.css
@@ -141,8 +155,14 @@ react-magicmirror/
 ### Settings Panel
 1. Click the **settings icon** (appears on mouse movement) in the top-right
 2. **Select Layout Preset**: Choose your preferred dashboard layout
-3. **Set Default API Keys**: Configure keys for Weather, News, and Stocks
+3. **Set Default API Keys**: Configure keys for Currents, TheNewsAPI (optional), Weather, and Stocks
 4. **Per-Widget Override**: Configure individual widget keys in dashboard
+
+### Reddit Widget Settings
+- **Favorite Subreddits**: Comma-separated list like `news,worldnews,UpliftingNews`
+- **Titles Per Subreddit**: How many top titles to fetch from each subreddit
+- **Poll Interval (Minutes)**: How often Reddit data is refreshed (default: 30)
+- **Rotation Interval (Seconds)**: How often titles rotate (default: 15)
 
 ### Adding a New Widget
 1. Locate an empty slot on the dashboard
@@ -201,17 +221,31 @@ export const MyWidget = () => {
 };
 ```
 
-2. Register in `src/config/widgetConfig.js`:
+2. Register in `src/components/widgetConfig.js`:
 
 ```javascript
-export const WIDGET_TYPES = {
-  myWidget: {
-    id: 'myWidget',
-    name: 'My Widget',
-    component: MyWidget,
-    defaultSettings: {
-      // your settings here
-    }
+export const WIDGET_OPTIONS = [
+  // ...existing options
+  { value: 'myWidget', label: 'My Widget' },
+];
+
+export const WIDGET_LABELS = {
+  // ...existing labels
+  myWidget: 'My Widget',
+};
+
+export const createWidgetSettingsForType = (widgetType, defaults = {}) => {
+  switch (widgetType) {
+    case 'myWidget':
+      return {
+        widgetType,
+        showFade: defaults.showFade ?? false,
+      };
+    default:
+      return {
+        widgetType,
+        showFade: defaults.showFade ?? false,
+      };
   }
 };
 ```
@@ -232,7 +266,7 @@ colors: {
 
 ### Creating a Custom Layout Preset
 
-Edit `src/config/widgetConfig.js`:
+Edit `src/components/widgetConfig.js`:
 
 ```javascript
 export const LAYOUT_PRESETS = {
@@ -321,7 +355,7 @@ This project is open source and available under the MIT License.
 
 - Inspired by [MagicMirror²](https://magicmirror.builders/)
 - Widget icons from Material-UI
-- API services: OpenWeatherMap, NewsAPI, Finnhub
+- API services: OpenWeatherMap, Currents API, Reddit, TheNewsAPI, Finnhub, ESPN
 - Built with React and Vite
 
 ## 📞 Support
@@ -330,4 +364,4 @@ For issues, questions, or suggestions, please open an issue on the [GitHub repos
 
 ---
 
-**Last Updated**: March 2026 - Latest version includes interactive dashboard with hover effects, layout presets, and per-widget configuration.
+**Last Updated**: March 2026 - Includes interactive dashboard layouts, merged news sources, and a configurable Reddit widget.
