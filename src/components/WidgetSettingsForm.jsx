@@ -366,6 +366,29 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange }) => {
           {renderFadeToggle()}
         </Stack>
       );
+    case 'holidays':
+      return (
+        <Stack spacing={2}>
+          <Typography sx={{ color: '#aaaaaa', fontSize: '0.875rem' }}>
+            Displays the 5 upcoming US holidays from api-ninjas.com
+          </Typography>
+          <TextField
+            fullWidth
+            label="API Ninjas API Key"
+            type="password"
+            value={settings.apiNinjasApiKey || ''}
+            onChange={(event) => updateSetting('apiNinjasApiKey', event.target.value)}
+            placeholder="Enter your API Ninjas API key"
+            helperText="Get a free key from api-ninjas.com/register"
+            variant="outlined"
+            sx={{
+              ...fieldStyles,
+              '& .MuiFormHelperText-root': { color: '#999999' },
+            }}
+          />
+          {renderFadeToggle()}
+        </Stack>
+      );
     case 'reddit':
       return (
         <Stack spacing={2}>

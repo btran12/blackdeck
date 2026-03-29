@@ -14,7 +14,9 @@ export const WidgetContext = createContext();
 const getInitialSettings = () => ({
   openweatherApiKey: localStorage.getItem('openweatherApiKey') || '',
   newsApiKey: localStorage.getItem('newsApiKey') || '',
+  currentsApiKey: localStorage.getItem('currentsApiKey') || '',
   finnhubApiKey: localStorage.getItem('finnhubApiKey') || '',
+  apiNinjasApiKey: localStorage.getItem('apiNinjasApiKey') || '',
   location: localStorage.getItem('location') || 'New York, New York',
   tempUnit: localStorage.getItem('tempUnit') || 'F',
   clockFormat: localStorage.getItem('clockFormat') || '24h',

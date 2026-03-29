@@ -303,6 +303,16 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                 variant="outlined"
                 sx={fieldStyles}
               />
+              <TextField
+                fullWidth
+                label="API Ninjas Key (Holidays)"
+                type="password"
+                value={localSettings.apiNinjasApiKey || ''}
+                onChange={(e) => handleDefaultSettingChange('apiNinjasApiKey', e.target.value)}
+                placeholder="Enter your API Ninjas key"
+                variant="outlined"
+                sx={fieldStyles}
+              />
               <Typography sx={{ color: '#999999', fontSize: '0.8rem' }}>
                 <strong>News:</strong> Uses Currents API (primary) with Reddit API fallback. Up to 30 rotating headlines.
                 <br />

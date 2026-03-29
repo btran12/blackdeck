@@ -19,6 +19,7 @@ import { Clock } from './widgets/Clock';
 import { Weather } from './widgets/Weather';
 import { Calendar } from './widgets/Calendar';
 import { News } from './widgets/News';
+import { Holidays } from './widgets/Holidays';
 import { Reddit } from './widgets/Reddit';
 import { Compliments } from './widgets/Compliments';
 import { Stocks } from './widgets/Stocks';
@@ -42,6 +43,7 @@ const WIDGET_COMPONENTS = {
   weather: Weather,
   calendar: Calendar,
   news: News,
+  holidays: Holidays,
   reddit: Reddit,
   compliments: Compliments,
   stocks: Stocks,
@@ -150,6 +152,8 @@ export const Dashboard = () => {
           showFade={widgetSettings.showFade}
         />
       );
+    } else if (widgetType === 'holidays') {
+      return <WidgetComponent apiKey={widgetSettings.apiNinjasApiKey || settings.apiNinjasApiKey} showFade={widgetSettings.showFade} />;
     } else {
       return <WidgetComponent />;
     }

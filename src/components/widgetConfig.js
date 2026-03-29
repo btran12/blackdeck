@@ -11,6 +11,7 @@ export const WIDGET_OPTIONS = [
   { value: 'weather', label: 'Weather' },
   { value: 'calendar', label: 'Calendar' },
   { value: 'news', label: 'News' },
+  { value: 'holidays', label: 'Public Holidays' },
   { value: 'reddit', label: 'Reddit' },
   { value: 'compliments', label: 'Compliments' },
   { value: 'stocks', label: 'Stocks' },
@@ -24,6 +25,7 @@ export const WIDGET_LABELS = {
   weather: 'Weather',
   calendar: 'Calendar',
   news: 'News',
+  holidays: 'Public Holidays',
   reddit: 'Reddit',
   compliments: 'Compliments',
   stocks: 'Stocks',
@@ -139,6 +141,7 @@ export const DEFAULT_WIDGET_FADE = {
   weather: true,
   calendar: false,
   news: false,
+  holidays: false,
   reddit: false,
   compliments: false,
   stocks: false,
@@ -209,6 +212,12 @@ export const createWidgetSettingsForType = (widgetType, defaults = {}) => {
         widgetType,
         newsApiKey: defaults.newsApiKey || '',
         showFade: defaults.showFade ?? DEFAULT_WIDGET_FADE.news,
+      };
+    case 'holidays':
+      return {
+        widgetType,
+        apiNinjasApiKey: defaults.apiNinjasApiKey || '',
+        showFade: defaults.showFade ?? DEFAULT_WIDGET_FADE.holidays,
       };
     case 'reddit':
       return {
