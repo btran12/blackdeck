@@ -286,7 +286,7 @@ export const Dashboard = () => {
                     borderColor: hoveredPosition === position
                       ? 'rgba(255,255,255,0.95)'
                       : undefined,
-                    bgcolor: widgets[position] ? 'transparent' : 'rgba(255,255,255,0.03)',
+                    // bgcolor: widgets[position] ? 'transparent' : 'rgba(255,255,255,0.03)',
                     outline: 'none',
                     '&:focus-visible': {
                       borderColor: '#2196f3',
@@ -395,6 +395,26 @@ export const Dashboard = () => {
                   '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#555555' },
                   '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#2196f3' },
                   '& .MuiSvgIcon-root': { color: '#ffffff' },
+                }}
+                MenuProps={{
+                  PaperProps: {
+                    sx: {
+                      bgcolor: '#000000',
+                      color: '#ffffff',
+                      '& .MuiMenuItem-root': {
+                        color: '#ffffff',
+                        '&:hover': {
+                          bgcolor: '#2196f3',
+                        },
+                        '&.Mui-selected': {
+                          bgcolor: '#2196f3',
+                          '&:hover': {
+                            bgcolor: '#2196f3',
+                          },
+                        },
+                      },
+                    },
+                  },
                 }}
               >
                 {widgetChoices.map((option) => (

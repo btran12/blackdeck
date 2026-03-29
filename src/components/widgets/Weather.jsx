@@ -136,11 +136,20 @@ export const Weather = ({ apiKey, location, tempUnit = 'F', clockFormat = '24h',
             temp_min: item.main.temp_min,
           },
           weather: [item.weather[0]],
+          wind: {
+            speed: item.wind.speed,
+            speedSum: item.wind.speed,
+            count: 1,
+          },
         };
       } else {
         // Update with highest max and lowest min
         dailyMap[date].main.temp_max = Math.max(dailyMap[date].main.temp_max, item.main.temp_max);
         dailyMap[date].main.temp_min = Math.min(dailyMap[date].main.temp_min, item.main.temp_min);
+        // Accumulate wind speed for averaging
+        dailyMap[date].wind.speedSum += item.wind.speed;
+        dailyMap[date].wind.count += 1;
+        dailyMap[date].wind.speed = dailyMap[date].wind.speedSum / dailyMap[date].wind.count;
         // Keep first weather condition encountered for the day
       }
     });
@@ -211,9 +220,17 @@ export const Weather = ({ apiKey, location, tempUnit = 'F', clockFormat = '24h',
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888888', width: '30px' }}>
                       {React.cloneElement(getWeatherIcon(item.weather[0].main), { sx: { fontSize: 20 } })}
                     </Box>
-                    <Typography sx={{ fontSize: '0.875rem', color: '#cccccc', width: '80px', textAlign: 'right' }}>
-                      {Math.round(item.main.temp_max)}° / {Math.round(item.main.temp_min)}°
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'flex-end', flex: 1 }}>
+                      <Typography sx={{ fontSize: '0.875rem', color: '#cccccc', minWidth: '80px', textAlign: 'right' }}>
+                        {Math.round(item.main.temp_max)}° / {Math.round(item.main.temp_min)}°
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <AirOutlinedIcon sx={{ fontSize: 14, color: '#888888' }} />
+                        <Typography sx={{ fontSize: '0.875rem', color: '#888888', minWidth: '40px' }}>
+                          {Math.round(item.wind.speed)}
+                        </Typography>
+                      </Box>
+                    </Box>
                   </Box>
                 ))}
               </Stack>

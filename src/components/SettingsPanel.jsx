@@ -46,6 +46,27 @@ const selectStyles = {
   '& .MuiSvgIcon-root': { color: '#ffffff' },
 };
 
+const menuProps = {
+  PaperProps: {
+    sx: {
+      bgcolor: '#000000',
+      color: '#ffffff',
+      '& .MuiMenuItem-root': {
+        color: '#ffffff',
+        '&:hover': {
+          bgcolor: '#2196f3',
+        },
+        '&.Mui-selected': {
+          bgcolor: '#2196f3',
+          '&:hover': {
+            bgcolor: '#2196f3',
+          },
+        },
+      },
+    },
+  },
+};
+
 const buildSettingsDefaultsFromInstances = (layoutWidgets, widgetSettingsMap, previousSettings) => {
   const nextSettings = { ...previousSettings };
 
@@ -168,6 +189,7 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                   onChange={(e) => setLocalLayoutPreset(normalizeLayoutPreset(e.target.value))}
                   label="Layout Preset"
                   sx={selectStyles}
+                  MenuProps={menuProps}
                 >
                   {layoutPresetOptions.map((preset) => (
                     <MenuItem key={preset.id} value={preset.id}>
@@ -198,6 +220,7 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                               onChange={(e) => handleLayoutChange(position, e.target.value || null)}
                               label={getPositionLabel(position, localLayoutPreset)}
                               sx={selectStyles}
+                              MenuProps={menuProps}
                             >
                               {WIDGET_OPTIONS.map((option) => (
                                 <MenuItem key={option.label} value={option.value || ''}>
@@ -225,6 +248,7 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                   onChange={(e) => handleDefaultSettingChange('fontFamily', e.target.value)}
                   label="Font Family"
                   sx={selectStyles}
+                  MenuProps={menuProps}
                 >
                   {FONT_OPTIONS.map((option) => (
                     <MenuItem key={option.value} value={option.value} sx={{ fontFamily: option.value }}>

@@ -55,6 +55,27 @@ const selectStyles = {
   '& .MuiSvgIcon-root': { color: '#ffffff' },
 };
 
+const menuProps = {
+  PaperProps: {
+    sx: {
+      bgcolor: '#000000',
+      color: '#ffffff',
+      '& .MuiMenuItem-root': {
+        color: '#ffffff',
+        '&:hover': {
+          bgcolor: '#2196f3',
+        },
+        '&.Mui-selected': {
+          bgcolor: '#2196f3',
+          '&:hover': {
+            bgcolor: '#2196f3',
+          },
+        },
+      },
+    },
+  },
+};
+
 const switchStyles = {
   '& .MuiSwitch-switchBase.Mui-checked': {
     color: '#2196f3',
@@ -239,6 +260,7 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange }) => {
               onChange={(event) => updateSetting('clockFormat', event.target.value)}
               label="Time Format"
               sx={selectStyles}
+              MenuProps={menuProps}
             >
               <MenuItem value="12h">12-Hour Format</MenuItem>
               <MenuItem value="24h">24-Hour Format</MenuItem>
@@ -258,6 +280,7 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange }) => {
               onChange={(event) => updateSetting('tempUnit', event.target.value)}
               label="Temperature Unit"
               sx={selectStyles}
+              MenuProps={menuProps}
             >
               <MenuItem value="C">Celsius</MenuItem>
               <MenuItem value="F">Fahrenheit</MenuItem>
@@ -270,6 +293,7 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange }) => {
               onChange={(event) => updateSetting('clockFormat', event.target.value)}
               label="Time Format"
               sx={selectStyles}
+              MenuProps={menuProps}
             >
               <MenuItem value="12h">12-Hour Format</MenuItem>
               <MenuItem value="24h">24-Hour Format</MenuItem>
