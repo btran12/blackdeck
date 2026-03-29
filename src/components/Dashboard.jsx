@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect, useRef } from 'react';
 import {
   Box,
   Button,
@@ -50,6 +50,7 @@ const WIDGET_COMPONENTS = {
 
 export const Dashboard = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showSettingsButton, setShowSettingsButton] = useState(false);
   const [hoveredPosition, setHoveredPosition] = useState(null);
   const [slotEditor, setSlotEditor] = useState({
     open: false,
@@ -58,10 +59,37 @@ export const Dashboard = () => {
     settings: null,
   });
   const { layout, settings, getWidgetSettingsForPosition, saveWidgetConfiguration } = useContext(WidgetContext);
+  const settingsButtonHideTimerRef = useRef(null);
   const widgets = layout.widgets;
   const activeLayoutPreset = getLayoutPreset(layout.preset);
   const gridRows = activeLayoutPreset.rows;
   const widgetChoices = WIDGET_OPTIONS.filter((option) => option.value);
+
+  useEffect(() => {
+    const scheduleHide = () => {
+      if (settingsButtonHideTimerRef.current) {
+        clearTimeout(settingsButtonHideTimerRef.current);
+      }
+
+      settingsButtonHideTimerRef.current = setTimeout(() => {
+        setShowSettingsButton(false);
+      }, 5000);
+    };
+
+    const handleMouseMove = () => {
+      setShowSettingsButton(true);
+      scheduleHide();
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      if (settingsButtonHideTimerRef.current) {
+        clearTimeout(settingsButtonHideTimerRef.current);
+      }
+    };
+  }, []);
 
   const renderWidget = (position, widgetType) => {
     if (!widgetType) return null;
@@ -196,7 +224,9 @@ export const Dashboard = () => {
           alignItems: 'center',
           gap: 1,
           '&:hover': { bgcolor: '#b1b1b1' },
-          transition: 'background-color 0.3s'
+          transition: 'background-color 0.3s, opacity 0.35s ease',
+          opacity: showSettingsButton ? 1 : 0,
+          pointerEvents: showSettingsButton ? 'auto' : 'none',
         }}
       >
         <SettingsIcon sx={{ fontSize: 30 }} />
