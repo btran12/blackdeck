@@ -1,5 +1,19 @@
 import React, { useState, useContext } from 'react';
-import { Box, Button } from '@mui/material';
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  Stack,
+  Typography,
+} from '@mui/material';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { Clock } from './widgets/Clock';
 import { Weather } from './widgets/Weather';
@@ -12,6 +26,13 @@ import { AirQuality } from './widgets/AirQuality';
 import { Sports } from './widgets/Sports';
 import { Notifications } from './Notifications';
 import { SettingsPanel } from './SettingsPanel';
+import { WidgetSettingsForm } from './WidgetSettingsForm';
+import {
+  createWidgetSettingsForType,
+  getPositionLabel,
+  WIDGET_LABELS,
+  WIDGET_OPTIONS,
+} from './widgetConfig';
 import { WidgetContext } from '../context/WidgetContext';
 
 const GRID_ROWS = [
@@ -34,8 +55,16 @@ const WIDGET_COMPONENTS = {
 
 export const Dashboard = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const { layout, getWidgetSettingsForPosition } = useContext(WidgetContext);
+  const [hoveredPosition, setHoveredPosition] = useState(null);
+  const [slotEditor, setSlotEditor] = useState({
+    open: false,
+    position: null,
+    widgetType: '',
+    settings: null,
+  });
+  const { layout, getWidgetSettingsForPosition, saveWidgetConfiguration } = useContext(WidgetContext);
   const widgets = layout.widgets;
+  const widgetChoices = WIDGET_OPTIONS.filter((option) => option.value);
 
   const renderWidget = (position, widgetType) => {
     if (!widgetType) return null;
@@ -89,6 +118,67 @@ export const Dashboard = () => {
     }
   };
 
+  const closeSlotEditor = () => {
+    setSlotEditor({
+      open: false,
+      position: null,
+      widgetType: '',
+      settings: null,
+    });
+  };
+
+  const openSlotEditor = (position) => {
+    const widgetType = widgets[position] || '';
+    const currentSettings = widgetType
+      ? { ...getWidgetSettingsForPosition(position, widgetType) }
+      : null;
+
+    setSlotEditor({
+      open: true,
+      position,
+      widgetType,
+      settings: currentSettings,
+    });
+  };
+
+  const handleSlotWidgetTypeChange = (nextWidgetType) => {
+    setSlotEditor((prev) => ({
+      ...prev,
+      widgetType: nextWidgetType,
+      settings: nextWidgetType
+        ? {
+            ...(getWidgetSettingsForPosition(prev.position, nextWidgetType)
+              || createWidgetSettingsForType(nextWidgetType)),
+          }
+        : null,
+    }));
+  };
+
+  const handleSlotSettingChange = (key, value) => {
+    setSlotEditor((prev) => ({
+      ...prev,
+      settings: {
+        ...prev.settings,
+        widgetType: prev.widgetType,
+        [key]: value,
+      },
+    }));
+  };
+
+  const handleSlotSave = () => {
+    if (slotEditor.position == null || !slotEditor.widgetType || !slotEditor.settings) return;
+
+    saveWidgetConfiguration(slotEditor.position, slotEditor.widgetType, slotEditor.settings);
+    closeSlotEditor();
+  };
+
+  const handleSlotRemove = () => {
+    if (slotEditor.position == null) return;
+
+    saveWidgetConfiguration(slotEditor.position, null, null);
+    closeSlotEditor();
+  };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', bgcolor: '#000000', overflow: 'hidden' }}>
       {/* Settings Button - Fixed Position */}
@@ -126,10 +216,106 @@ export const Dashboard = () => {
                   gridColumn: { xs: '1', md: `span ${row.colSpans[index]}` },
                   minHeight: 0,
                   height: '100%',
-                  overflow: 'hidden',
+                  overflow: 'visible',
                 }}
               >
-                {renderWidget(position, widgets[position])}
+                <Box
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openSlotEditor(position)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openSlotEditor(position);
+                    }
+                  }}
+                  onMouseEnter={() => setHoveredPosition(position)}
+                  onMouseLeave={() => setHoveredPosition((current) => (current === position ? null : current))}
+                  sx={{
+                    position: 'relative',
+                    height: '100%',
+                    borderRadius: '24px',
+                    overflow: 'hidden',
+                    cursor: 'pointer',
+                    transition: 'transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease',
+                    transform: hoveredPosition === position ? 'translateY(-8px)' : 'translateY(0)',
+                    boxShadow: hoveredPosition === position
+                      ? '0 22px 48px rgba(0, 0, 0, 0.45)'
+                      : '0 0 0 rgba(0, 0, 0, 0)',
+                    zIndex: hoveredPosition === position ? 4 : 1,
+                    border: widgets[position]
+                      ? '1px solid rgba(255,255,255,0)'
+                      : '1px dashed rgba(255,255,255,0.18)',
+                    borderColor: hoveredPosition === position
+                      ? 'rgba(255,255,255,0.95)'
+                      : undefined,
+                    bgcolor: widgets[position] ? 'transparent' : 'rgba(255,255,255,0.03)',
+                    outline: 'none',
+                    '&:focus-visible': {
+                      borderColor: '#2196f3',
+                      boxShadow: '0 0 0 2px rgba(33, 150, 243, 0.35)',
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 12,
+                      right: 12,
+                      zIndex: 2,
+                      px: 1.25,
+                      py: 0.5,
+                      borderRadius: '999px',
+                      bgcolor: 'rgba(0, 0, 0, 0.65)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      opacity: hoveredPosition === position ? 1 : 0,
+                      transform: hoveredPosition === position ? 'translateY(0)' : 'translateY(4px)',
+                      transition: 'opacity 180ms ease, transform 180ms ease',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    <Typography sx={{ color: '#ffffff', fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                      {widgets[position] ? 'Edit Widget' : 'Add Widget'}
+                    </Typography>
+                  </Box>
+
+                  {widgets[position] ? (
+                    renderWidget(position, widgets[position])
+                  ) : (
+                    <Stack
+                      spacing={1}
+                      sx={{
+                        height: '100%',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#ffffff',
+                        px: 3,
+                        textAlign: 'center',
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 56,
+                          height: 56,
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: 'rgba(255,255,255,0.08)',
+                          border: '1px solid rgba(255,255,255,0.14)',
+                        }}
+                      >
+                        <AddRoundedIcon sx={{ fontSize: 30, color: '#ffffff' }} />
+                      </Box>
+                      <Typography sx={{ fontSize: '1rem', fontWeight: 600, color: '#ffffff' }}>
+                        Add a widget
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.85rem', color: '#9a9a9a', maxWidth: '220px' }}>
+                        Choose a widget for {getPositionLabel(position)} and configure its settings.
+                      </Typography>
+                    </Stack>
+                  )}
+                </Box>
               </Box>
             ))
           )}
@@ -138,6 +324,116 @@ export const Dashboard = () => {
 
       {/* Notifications */}
       <Notifications />
+
+      <Dialog
+        open={slotEditor.open}
+        onClose={closeSlotEditor}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: '#1a1a1a',
+            backgroundImage: 'none',
+          },
+        }}
+      >
+        <DialogTitle sx={{ color: '#ffffff', fontSize: '1.35rem', fontWeight: 'bold', pb: 1 }}>
+          {slotEditor.widgetType
+            ? `${WIDGET_LABELS[slotEditor.widgetType]} · ${getPositionLabel(slotEditor.position)}`
+            : `Add Widget · ${getPositionLabel(slotEditor.position)}`}
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1, overflowY: 'auto' }}>
+          <Stack spacing={3}>
+            <FormControl variant="outlined" fullWidth>
+              <InputLabel sx={{ color: '#cccccc' }}>Widget</InputLabel>
+              <Select
+                value={slotEditor.widgetType}
+                onChange={(event) => handleSlotWidgetTypeChange(event.target.value)}
+                label="Widget"
+                sx={{
+                  color: '#ffffff',
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: '#444444' },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#555555' },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#2196f3' },
+                  '& .MuiSvgIcon-root': { color: '#ffffff' },
+                }}
+              >
+                {widgetChoices.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {slotEditor.widgetType && slotEditor.settings ? (
+              <WidgetSettingsForm
+                widgetType={slotEditor.widgetType}
+                settings={slotEditor.settings}
+                onChange={handleSlotSettingChange}
+              />
+            ) : (
+              <Box
+                sx={{
+                  borderRadius: '18px',
+                  border: '1px dashed rgba(255,255,255,0.14)',
+                  bgcolor: 'rgba(255,255,255,0.03)',
+                  px: 3,
+                  py: 4,
+                  textAlign: 'center',
+                }}
+              >
+                <Typography sx={{ color: '#ffffff', fontSize: '1rem', fontWeight: 600, mb: 1 }}>
+                  Choose a widget to place here
+                </Typography>
+                <Typography sx={{ color: '#9a9a9a', fontSize: '0.85rem' }}>
+                  After selecting a widget, its individual settings will appear below.
+                </Typography>
+              </Box>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, gap: 1 }}>
+          {widgets[slotEditor.position] && (
+            <Button
+              onClick={handleSlotRemove}
+              variant="outlined"
+              sx={{
+                mr: 'auto',
+                color: '#ff6b6b',
+                borderColor: 'rgba(255, 107, 107, 0.45)',
+                '&:hover': { borderColor: '#ff6b6b', bgcolor: 'rgba(255, 107, 107, 0.08)' },
+              }}
+            >
+              Remove Widget
+            </Button>
+          )}
+          <Button
+            onClick={closeSlotEditor}
+            variant="outlined"
+            sx={{
+              color: '#ffffff',
+              borderColor: '#444444',
+              '&:hover': { borderColor: '#555555', bgcolor: 'rgba(255,255,255,0.05)' },
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSlotSave}
+            disabled={!slotEditor.widgetType || !slotEditor.settings}
+            variant="contained"
+            sx={{
+              bgcolor: '#2196f3',
+              color: '#ffffff',
+              '&:hover': { bgcolor: '#1976d2' },
+              '&.Mui-disabled': { bgcolor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.35)' },
+            }}
+          >
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Settings Modal */}
       <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />

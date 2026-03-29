@@ -1,30 +1,12 @@
 import React, { createContext, useState, useCallback } from 'react';
+import {
+  createWidgetSettingsForType,
+  DEFAULT_LAYOUT,
+  DEFAULT_WIDGET_FADE,
+  normalizeLayoutWidgets,
+} from '../components/widgetConfig';
 
 export const WidgetContext = createContext();
-
-const DEFAULT_LAYOUT = [
-  'clock',
-  'compliments',
-  'weather',
-  null,
-  null,
-  null,
-  'news',
-  null,
-  null,
-];
-
-const LEGACY_FADE_SETTINGS = {
-  clock: false,
-  weather: true,
-  calendar: false,
-  news: false,
-  compliments: false,
-  stocks: false,
-  crypto: false,
-  airquality: false,
-  sports: false,
-};
 
 const getInitialSettings = () => ({
   openweatherApiKey: localStorage.getItem('openweatherApiKey') || '',
@@ -40,21 +22,22 @@ const getInitialSettings = () => ({
 const getInitialFadeSettings = () => {
   try {
     const stored = localStorage.getItem('fadeSettings');
-    if (!stored) return LEGACY_FADE_SETTINGS;
+    if (!stored) return DEFAULT_WIDGET_FADE;
 
     const parsed = JSON.parse(stored);
-    return { ...LEGACY_FADE_SETTINGS, ...parsed };
+    return { ...DEFAULT_WIDGET_FADE, ...parsed };
   } catch (e) {
     console.error('Error parsing fadeSettings from localStorage:', e);
-    return LEGACY_FADE_SETTINGS;
+    return DEFAULT_WIDGET_FADE;
   }
 };
 
 const getInitialLayout = () => {
   try {
     const stored = localStorage.getItem('layout');
+    const widgets = stored ? normalizeLayoutWidgets(JSON.parse(stored)) : DEFAULT_LAYOUT;
     return {
-      widgets: stored ? JSON.parse(stored) : DEFAULT_LAYOUT,
+      widgets,
     };
   } catch (e) {
     console.error('Error parsing layout from localStorage:', e);
@@ -64,77 +47,11 @@ const getInitialLayout = () => {
   }
 };
 
-const createWidgetSettingsForType = (widgetType, settings, fadeSettings) => {
-  switch (widgetType) {
-    case 'clock':
-      return {
-        widgetType,
-        clockFormat: settings.clockFormat,
-        showFade: fadeSettings.clock,
-      };
-    case 'weather':
-      return {
-        widgetType,
-        openweatherApiKey: settings.openweatherApiKey,
-        location: settings.location,
-        tempUnit: settings.tempUnit,
-        clockFormat: settings.clockFormat,
-        showFade: fadeSettings.weather,
-      };
-    case 'calendar':
-      return {
-        widgetType,
-        icsUrl: settings.icsUrl,
-        showFade: fadeSettings.calendar,
-      };
-    case 'news':
-      return {
-        widgetType,
-        newsApiKey: settings.newsApiKey,
-        showFade: fadeSettings.news,
-      };
-    case 'compliments':
-      return {
-        widgetType,
-        complimentsConfigUrl: settings.complimentsConfigUrl,
-        openweatherApiKey: settings.openweatherApiKey,
-        location: settings.location,
-        showFade: fadeSettings.compliments,
-      };
-    case 'stocks':
-      return {
-        widgetType,
-        finnhubApiKey: settings.finnhubApiKey,
-        stockTickers: [],
-        showFade: fadeSettings.stocks,
-      };
-    case 'crypto':
-      return {
-        widgetType,
-        cryptoCoins: ['bitcoin', 'ethereum'],
-        showFade: fadeSettings.crypto,
-      };
-    case 'airquality':
-      return {
-        widgetType,
-        openweatherApiKey: settings.openweatherApiKey,
-        location: settings.location,
-        showFade: fadeSettings.airquality,
-      };
-    case 'sports':
-      return {
-        widgetType,
-        sportsLeagues: [],
-        sportsTeams: '',
-        showFade: fadeSettings.sports,
-      };
-    default:
-      return {
-        widgetType,
-        showFade: false,
-      };
-  }
-};
+const getWidgetDefaults = (widgetType, settings, fadeSettings) =>
+  createWidgetSettingsForType(widgetType, {
+    ...settings,
+    showFade: fadeSettings[widgetType],
+  });
 
 const buildWidgetSettingsForLayout = (layoutWidgets, storedWidgetSettings, settings, fadeSettings) => {
   const nextWidgetSettings = {};
@@ -142,7 +59,7 @@ const buildWidgetSettingsForLayout = (layoutWidgets, storedWidgetSettings, setti
   layoutWidgets.forEach((widgetType, position) => {
     if (!widgetType) return;
 
-    const defaults = createWidgetSettingsForType(widgetType, settings, fadeSettings);
+    const defaults = getWidgetDefaults(widgetType, settings, fadeSettings);
     const storedSettings = storedWidgetSettings?.[position];
 
     if (storedSettings?.widgetType === widgetType) {
@@ -210,8 +127,9 @@ export const WidgetProvider = ({ children }) => {
   }, [addNotification]);
 
   const updateLayout = useCallback((newLayout) => {
-    setLayout({ widgets: newLayout });
-    localStorage.setItem('layout', JSON.stringify(newLayout));
+    const normalizedLayout = normalizeLayoutWidgets(newLayout);
+    setLayout({ widgets: normalizedLayout });
+    localStorage.setItem('layout', JSON.stringify(normalizedLayout));
     addNotification('Layout saved', 'success');
   }, [addNotification]);
 
@@ -223,8 +141,9 @@ export const WidgetProvider = ({ children }) => {
   }, [addNotification, fadeSettings, layout.widgets, settings]);
 
   const saveDashboardConfiguration = useCallback((newLayout, newWidgetSettings, newSettings) => {
-    setLayout({ widgets: newLayout });
-    localStorage.setItem('layout', JSON.stringify(newLayout));
+    const normalizedLayout = normalizeLayoutWidgets(newLayout);
+    setLayout({ widgets: normalizedLayout });
+    localStorage.setItem('layout', JSON.stringify(normalizedLayout));
 
     setSettings(prev => {
       const updated = { ...prev, ...newSettings };
@@ -234,7 +153,7 @@ export const WidgetProvider = ({ children }) => {
       return updated;
     });
 
-    const nextWidgetSettings = buildWidgetSettingsForLayout(newLayout, newWidgetSettings, newSettings, fadeSettings);
+    const nextWidgetSettings = buildWidgetSettingsForLayout(normalizedLayout, newWidgetSettings, newSettings, fadeSettings);
     setWidgetSettings(nextWidgetSettings);
     localStorage.setItem('widgetSettings', JSON.stringify(nextWidgetSettings));
 
@@ -255,8 +174,39 @@ export const WidgetProvider = ({ children }) => {
       return currentSettings;
     }
 
-    return createWidgetSettingsForType(widgetType, settings, fadeSettings);
+    return getWidgetDefaults(widgetType, settings, fadeSettings);
   }, [fadeSettings, layout.widgets, settings, widgetSettings]);
+
+  const saveWidgetConfiguration = useCallback((position, widgetType, newWidgetSettings) => {
+    const nextLayout = normalizeLayoutWidgets(layout.widgets);
+    nextLayout[position] = widgetType || null;
+
+    const nextStoredSettings = { ...widgetSettings };
+
+    if (!widgetType) {
+      delete nextStoredSettings[position];
+    } else {
+      nextStoredSettings[position] = {
+        ...getWidgetDefaults(widgetType, settings, fadeSettings),
+        ...newWidgetSettings,
+        widgetType,
+      };
+    }
+
+    const normalizedWidgetSettings = buildWidgetSettingsForLayout(
+      nextLayout,
+      nextStoredSettings,
+      settings,
+      fadeSettings
+    );
+
+    setLayout({ widgets: nextLayout });
+    setWidgetSettings(normalizedWidgetSettings);
+    localStorage.setItem('layout', JSON.stringify(nextLayout));
+    localStorage.setItem('widgetSettings', JSON.stringify(normalizedWidgetSettings));
+
+    addNotification(widgetType ? 'Widget updated' : 'Widget removed', 'success');
+  }, [addNotification, fadeSettings, layout.widgets, settings, widgetSettings]);
 
   const removeNotification = useCallback((id) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
@@ -272,6 +222,7 @@ export const WidgetProvider = ({ children }) => {
     widgetSettings,
     updateWidgetSettings,
     saveDashboardConfiguration,
+    saveWidgetConfiguration,
     getWidgetSettingsForPosition,
     fadeSettings,
     updateFadeSettings,
