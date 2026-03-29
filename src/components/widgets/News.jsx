@@ -10,6 +10,9 @@ export const News = ({ apiKey, showFade = false }) => {
   const [isFading, setIsFading] = useState(false);
   const POLL_INTERVAL = 30 * 60 * 1000; // 30 minutes
   const ROTATION_INTERVAL = 15 * 1000; // 15 seconds
+  const TARGET_HEADLINES = 10;
+  const PAGE_SIZE = 3;
+  const MAX_PAGES = 5;
 
   // Fetch news every 30 minutes
   useEffect(() => {
@@ -22,15 +25,34 @@ export const News = ({ apiKey, showFade = false }) => {
     const fetchNews = async () => {
       try {
         setLoading(true);
-        const url = `https://newsapi.org/v2/top-headlines?country=us&apiKey=${apiKey}`;
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch news');
+        const combined = [];
+        const seen = new Set();
+
+        for (let page = 1; page <= MAX_PAGES && combined.length < TARGET_HEADLINES; page += 1) {
+          const url = `https://api.thenewsapi.com/v1/news/top?api_token=${encodeURIComponent(apiKey)}&locale=us&categories=politics,finance&limit=${PAGE_SIZE}&page=${page}`;
+          const response = await fetch(url);
+
+          if (!response.ok) {
+            throw new Error('Failed to fetch news');
+          }
+
+          const data = await response.json();
+          const pageArticles = Array.isArray(data.data) ? data.data : [];
+
+          if (pageArticles.length === 0) {
+            break;
+          }
+
+          pageArticles.forEach((item) => {
+            const key = item.uuid || item.url || `${item.title}-${item.published_at}`;
+            if (!seen.has(key) && combined.length < TARGET_HEADLINES) {
+              seen.add(key);
+              combined.push(item);
+            }
+          });
         }
-        
-        const data = await response.json();
-        setArticles(data.articles?.slice(0, 10) || []);
+
+        setArticles(combined);
         setCurrentIndex(0);
         setError(null);
       } catch (err) {
@@ -65,6 +87,12 @@ export const News = ({ apiKey, showFade = false }) => {
   }, [articles.length]);
 
   const currentArticle = articles[currentIndex];
+  const publishedAt = currentArticle?.published_at || currentArticle?.publishedAt;
+  const sourceName =
+    currentArticle?.source ||
+    currentArticle?.source_name ||
+    currentArticle?.source?.name ||
+    'Unknown source';
 
   return (
     <Widget title="Top Headlines" widgetType="news" showFade={showFade}>
@@ -83,16 +111,16 @@ export const News = ({ apiKey, showFade = false }) => {
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', pb: 1, opacity: isFading ? 0 : 1, transition: 'opacity 0.5s ease-in-out' }}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
               <Typography sx={{ fontSize: '1rem', color: '#666666' }}>
-                {new Date(currentArticle.publishedAt).toLocaleString('en-US', { 
+                {publishedAt ? new Date(publishedAt).toLocaleString('en-US', {
                   month: 'short', 
                   day: 'numeric', 
                   hour: '2-digit', 
                   minute: '2-digit'
-                })}
+                }) : 'Date unavailable'}
               </Typography>
             </Box>
             <Typography sx={{ fontSize: '1rem', color: '#aaaaaa' }}>
-              {currentArticle.source.name}
+              {sourceName}
             </Typography>
           </Box>
 

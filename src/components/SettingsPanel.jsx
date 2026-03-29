@@ -21,6 +21,7 @@ import {
   IconButton,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { WidgetContext } from '../context/WidgetContext';
 
 const FALLBACK_CITIES = [
@@ -220,6 +221,9 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
   const [localWidgetSettings, setLocalWidgetSettings] = useState(widgetSettings);
   const [citySuggestions, setCitySuggestions] = useState([]);
   const [cityLoading, setCityLoading] = useState(false);
+  const [dragTickerPosition, setDragTickerPosition] = useState(null);
+  const [draggedTickerIndex, setDraggedTickerIndex] = useState(null);
+  const [dragOverTickerIndex, setDragOverTickerIndex] = useState(null);
   const debounceTimerRef = useRef(null);
   const searchCacheRef = useRef({});
 
@@ -274,6 +278,46 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
         [key]: value,
       },
     }));
+  };
+
+  const reorderTickers = (position, fromIndex, toIndex) => {
+    if (fromIndex === toIndex) return;
+
+    const tickers = localWidgetSettings[position]?.stockTickers || [];
+    if (fromIndex < 0 || fromIndex >= tickers.length) return;
+    if (toIndex < 0 || toIndex >= tickers.length) return;
+
+    const next = [...tickers];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    handleWidgetSettingChange(position, 'stockTickers', next);
+  };
+
+  const resetTickerDragState = () => {
+    setDragTickerPosition(null);
+    setDraggedTickerIndex(null);
+    setDragOverTickerIndex(null);
+  };
+
+  const handleTickerDragStart = (position, tickerIndex) => {
+    setDragTickerPosition(position);
+    setDraggedTickerIndex(tickerIndex);
+    setDragOverTickerIndex(tickerIndex);
+  };
+
+  const handleTickerDragEnter = (position, tickerIndex) => {
+    if (dragTickerPosition !== position || draggedTickerIndex === null) return;
+    setDragOverTickerIndex(tickerIndex);
+  };
+
+  const handleTickerDrop = (position, tickerIndex) => {
+    if (dragTickerPosition !== position || draggedTickerIndex === null) {
+      resetTickerDragState();
+      return;
+    }
+
+    reorderTickers(position, draggedTickerIndex, tickerIndex);
+    resetTickerDragState();
   };
 
   const fetchCitySuggestions = async (query, apiKey) => {
@@ -508,12 +552,12 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
           <Stack spacing={2}>
             <TextField
               fullWidth
-              label="NewsAPI API Key"
+              label="TheNewsAPI API Key"
               type="password"
               value={currentSettings.newsApiKey || ''}
               onChange={(e) => handleWidgetSettingChange(position, 'newsApiKey', e.target.value)}
               placeholder="Enter your API key"
-              helperText="Get a key from newsapi.org to load top headlines"
+              helperText="Get a key from thenewsapi.com to load top headlines"
               variant="outlined"
               sx={{
                 ...fieldStyles,
@@ -580,9 +624,35 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
               <Typography sx={{ color: '#cccccc', fontSize: '0.85rem', mb: 1 }}>
                 Tickers ({currentTickers.length}/10)
               </Typography>
+              <Typography sx={{ color: '#888888', fontSize: '0.75rem', mb: 1 }}>
+                Drag rows by the handle to reorder display priority.
+              </Typography>
               <Stack spacing={1}>
                 {currentTickers.map((ticker, idx) => (
-                  <Box key={idx} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                  <Box
+                    key={`${ticker}-${idx}`}
+                    draggable
+                    onDragStart={() => handleTickerDragStart(position, idx)}
+                    onDragEnter={() => handleTickerDragEnter(position, idx)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => handleTickerDrop(position, idx)}
+                    onDragEnd={resetTickerDragState}
+                    sx={{
+                      display: 'flex',
+                      gap: 1,
+                      alignItems: 'center',
+                      border: '1px solid',
+                      borderColor: dragOverTickerIndex === idx && dragTickerPosition === position
+                        ? 'rgba(33, 150, 243, 0.8)'
+                        : 'transparent',
+                      borderRadius: '8px',
+                      px: 0.5,
+                      py: 0.25,
+                      opacity: draggedTickerIndex === idx && dragTickerPosition === position ? 0.55 : 1,
+                      cursor: 'grab',
+                    }}
+                  >
+                    <DragIndicatorIcon sx={{ color: '#777777', fontSize: '1rem' }} />
                     <TextField
                       size="small"
                       value={ticker}
