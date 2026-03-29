@@ -57,6 +57,17 @@ export const LAYOUT_PRESETS = {
       { id: 'bottom', label: 'Bottom Row', colSpans: [4, 4, 4], positions: [4, 5, 6] },
     ],
   },
+  grid3x3: {
+    id: 'grid3x3',
+    label: '3 x 3 Grid',
+    description: 'Uniform three-row by three-column layout for nine widgets.',
+    gridTemplateRows: '1fr 1fr 1fr',
+    rows: [
+      { id: 'top', label: 'Top Row', colSpans: [4, 4, 4], positions: [0, 1, 2] },
+      { id: 'middle', label: 'Middle Row', colSpans: [4, 4, 4], positions: [3, 4, 5] },
+      { id: 'bottom', label: 'Bottom Row', colSpans: [4, 4, 4], positions: [6, 7, 8] },
+    ],
+  },
 };
 
 export const DEFAULT_LAYOUT_PRESET = 'classic';
@@ -68,7 +79,50 @@ export const POSITION_LABELS = {
   3: 'Middle Left',
   4: 'Middle Middle',
   5: 'Middle Right',
-  6: 'Bottom',
+  6: 'Bottom Left',
+  7: 'Bottom Middle',
+  8: 'Bottom Right',
+};
+
+const PRESET_POSITION_LABELS = {
+  classic: {
+    0: 'Top Left',
+    1: 'Top Middle',
+    2: 'Top Right',
+    3: 'Middle Left',
+    4: 'Middle Middle',
+    5: 'Middle Right',
+    6: 'Bottom',
+  },
+  spotlight: {
+    0: 'Spotlight',
+    1: 'Top Right',
+    2: 'Middle Left',
+    3: 'Middle Center',
+    4: 'Middle Right',
+    5: 'Bottom Left',
+    6: 'Bottom Right',
+  },
+  quad: {
+    0: 'Top Left',
+    1: 'Top Right',
+    2: 'Middle Left',
+    3: 'Middle Right',
+    4: 'Bottom Left',
+    5: 'Bottom Middle',
+    6: 'Bottom Right',
+  },
+  grid3x3: {
+    0: 'Top Left',
+    1: 'Top Middle',
+    2: 'Top Right',
+    3: 'Middle Left',
+    4: 'Middle Middle',
+    5: 'Middle Right',
+    6: 'Bottom Left',
+    7: 'Bottom Middle',
+    8: 'Bottom Right',
+  },
 };
 
 export const DEFAULT_WIDGET_FADE = {
@@ -91,16 +145,22 @@ export const DEFAULT_LAYOUT = [
   null,
   null,
   'news',
+  null,
+  null,
 ];
 
-export const LAYOUT_SLOT_COUNT = 7;
+export const LAYOUT_SLOT_COUNT = 9;
 
 export const normalizeLayoutPreset = (presetId) =>
   LAYOUT_PRESETS[presetId] ? presetId : DEFAULT_LAYOUT_PRESET;
 
 export const getLayoutPreset = (presetId) => LAYOUT_PRESETS[normalizeLayoutPreset(presetId)];
 
-export const getPositionLabel = (position) => POSITION_LABELS[position] || `Position ${position + 1}`;
+export const getPositionLabel = (position, presetId = DEFAULT_LAYOUT_PRESET) => {
+  const normalizedPreset = normalizeLayoutPreset(presetId);
+  const labels = PRESET_POSITION_LABELS[normalizedPreset] || POSITION_LABELS;
+  return labels[position] || `Position ${position + 1}`;
+};
 
 export const normalizeLayoutWidgets = (layoutWidgets = []) =>
   Array.from({ length: LAYOUT_SLOT_COUNT }, (_, index) => {

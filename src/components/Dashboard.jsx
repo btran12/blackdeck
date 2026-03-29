@@ -307,7 +307,7 @@ export const Dashboard = () => {
                           Add a widget
                         </Typography>
                         <Typography sx={{ fontSize: '0.85rem', color: '#9a9a9a', maxWidth: '220px' }}>
-                          Choose a widget for {getPositionLabel(position)} and configure its settings.
+                          Choose a widget for {getPositionLabel(position, layout.preset)} and configure its settings.
                         </Typography>
                       </Stack>
                     ) : null
@@ -336,8 +336,8 @@ export const Dashboard = () => {
       >
         <DialogTitle sx={{ color: '#ffffff', fontSize: '1.35rem', fontWeight: 'bold', pb: 1 }}>
           {slotEditor.widgetType
-            ? `${WIDGET_LABELS[slotEditor.widgetType]} · ${getPositionLabel(slotEditor.position)}`
-            : `Add Widget · ${getPositionLabel(slotEditor.position)}`}
+            ? `${WIDGET_LABELS[slotEditor.widgetType]} · ${getPositionLabel(slotEditor.position, layout.preset)}`
+            : `Add Widget · ${getPositionLabel(slotEditor.position, layout.preset)}`}
         </DialogTitle>
         <DialogContent sx={{ pt: 1, overflowY: 'auto' }}>
           <Stack spacing={3}>

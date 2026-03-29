@@ -191,11 +191,11 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                       {row.positions.map((position, index) => (
                         <Grid item xs={12} md={colWidths[index]} key={position}>
                           <FormControl sx={{ minWidth: '150px' }} size="small" variant="outlined">
-                            <InputLabel sx={{ color: '#cccccc' }}>{getPositionLabel(position)}</InputLabel>
+                            <InputLabel sx={{ color: '#cccccc' }}>{getPositionLabel(position, localLayoutPreset)}</InputLabel>
                             <Select
                               value={localLayout[position] || ''}
                               onChange={(e) => handleLayoutChange(position, e.target.value || null)}
-                              label={getPositionLabel(position)}
+                              label={getPositionLabel(position, localLayoutPreset)}
                               sx={selectStyles}
                             >
                               {WIDGET_OPTIONS.map((option) => (
