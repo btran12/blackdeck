@@ -84,8 +84,8 @@ const GameRow = ({ event }) => {
 
   if (!home || !away) return null;
 
-  const homeAbbr = home.team?.abbreviation || home.team?.shortDisplayName || '?';
-  const awayAbbr = away.team?.abbreviation || away.team?.shortDisplayName || '?';
+  const homeName = home.team?.displayName || home.team?.shortDisplayName || home.team?.abbreviation || '?';
+  const awayName = away.team?.displayName || away.team?.shortDisplayName || away.team?.abbreviation || '?';
   const leagueName = LEAGUES[event._leagueKey]?.name || '';
 
   let scoreOrTime = null;
@@ -100,12 +100,12 @@ const GameRow = ({ event }) => {
       '';
     statusLabel = `LIVE · ${clockDetail}`;
     statusColor = '#4caf50';
-    scoreOrTime = `${awayAbbr} ${away.score ?? '—'} – ${homeAbbr} ${home.score ?? '—'}`;
+    scoreOrTime = `${awayName} ${away.score ?? '—'} – ${homeName} ${home.score ?? '—'}`;
   } else if (state === 'post') {
     // Finished
     statusLabel = 'Final';
     statusColor = '#888888';
-    scoreOrTime = `${awayAbbr} ${away.score ?? '—'} – ${homeAbbr} ${home.score ?? '—'}`;
+    scoreOrTime = `${awayName} ${away.score ?? '—'} – ${homeName} ${home.score ?? '—'}`;
   } else {
     // Scheduled
     const gameDate = new Date(event.date);
@@ -114,7 +114,7 @@ const GameRow = ({ event }) => {
       ? formatTime(event.date)
       : `${formatDate(event.date)} · ${formatTime(event.date)}`;
     statusColor = '#aaaaaa';
-    scoreOrTime = `${awayAbbr} vs ${homeAbbr}`;
+    scoreOrTime = `${awayName} vs ${homeName}`;
   }
 
   return (
@@ -186,6 +186,15 @@ export const Sports = ({ leagues = [], teams = '', showFade = false }) => {
     const today = new Date();
     const endDate = new Date(today);
     endDate.setDate(today.getDate() + UPCOMING_DAYS);
+    let interval = null;
+    let isMounted = true;
+
+    const stopPolling = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
 
     const fetchAll = async () => {
       try {
@@ -197,21 +206,32 @@ export const Sports = ({ leagues = [], teams = '', showFade = false }) => {
         const filtered = teamFilters.length > 0
           ? allEvents.filter((ev) => matchesTeamFilter(ev, teamFilters))
           : allEvents;
+        const hasLiveMatches = filtered.some((ev) => getEventState(ev) === 'in');
+
+        if (hasLiveMatches && !interval) {
+          interval = setInterval(fetchAll, LIVE_REFRESH_MS);
+        } else if (!hasLiveMatches) {
+          stopPolling();
+        }
+
+        if (!isMounted) return;
         setEvents(filtered);
         setError(null);
       } catch (err) {
+        stopPolling();
+        if (!isMounted) return;
         setError(err.message);
       } finally {
+        if (!isMounted) return;
         setLoading(false);
       }
     };
 
     fetchAll();
 
-    const interval = setInterval(fetchAll, LIVE_REFRESH_MS);
-
     return () => {
-      clearInterval(interval);
+      isMounted = false;
+      stopPolling();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLeagues.join(','), teams]);
@@ -223,11 +243,6 @@ export const Sports = ({ leagues = [], teams = '', showFade = false }) => {
   return (
     <Widget widgetType="sports" showFade={showFade}>
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-        <Typography
-          sx={{ color: '#ffffff', fontWeight: 700, fontSize: '1rem', mb: 1, letterSpacing: '0.04em' }}
-        >
-          Sports
-        </Typography>
 
         {loading && (
           <Typography sx={{ color: '#888888', fontSize: '0.85rem' }}>Loading scores...</Typography>
@@ -263,9 +278,9 @@ export const Sports = ({ leagues = [], teams = '', showFade = false }) => {
             {hasUpcoming && (
               <Box sx={{ mt: hasToday ? 1.5 : 0 }}>
                 <Typography
-                  sx={{ color: '#aaaaaa', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.08em', mb: 0.5 }}
+                  sx={{ color: '#aaaaaa', fontSize: '.75rem', textTransform: 'uppercase', letterSpacing: '0.08em', mb: 0.5 }}
                 >
-                  Upcoming
+                  Upcoming Matches
                 </Typography>
                 {upcomingEvents.map((ev) => (
                   <GameRow key={ev.id} event={ev} />

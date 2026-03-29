@@ -11,6 +11,8 @@ import AirOutlinedIcon from '@mui/icons-material/AirOutlined';
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined';
 import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined';
 
+const WEATHER_REFRESH_MS = 3 * 60 * 60 * 1000; // 3 hours
+
 export const Weather = ({ apiKey, location, tempUnit = 'F', clockFormat = '24h', showFade = true }) => {
   const [weather, setWeather] = useState(null);
   const [forecast, setForecast] = useState(null);
@@ -64,7 +66,7 @@ export const Weather = ({ apiKey, location, tempUnit = 'F', clockFormat = '24h',
     };
 
     fetchWeather();
-    const interval = setInterval(fetchWeather, 10 * 60 * 1000);
+    const interval = setInterval(fetchWeather, WEATHER_REFRESH_MS);
     return () => clearInterval(interval);
   }, [apiKey, location, tempUnit]);
 
