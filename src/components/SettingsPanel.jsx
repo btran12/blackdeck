@@ -219,21 +219,31 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
             <Stack spacing={2}>
               <TextField
                 fullWidth
-                label="OpenWeather API Key (Weather / Air Quality / Compliments)"
+                label="Currents API Key (News - Primary)"
                 type="password"
-                value={localSettings.openweatherApiKey || ''}
-                onChange={(e) => handleDefaultSettingChange('openweatherApiKey', e.target.value)}
-                placeholder="Enter default OpenWeather key"
+                value={localSettings.currentsApiKey || ''}
+                onChange={(e) => handleDefaultSettingChange('currentsApiKey', e.target.value)}
+                placeholder="Enter default Currents API key"
                 variant="outlined"
                 sx={fieldStyles}
               />
               <TextField
                 fullWidth
-                label="TheNewsAPI Key (News)"
+                label="TheNewsAPI Key (News - Fallback)"
                 type="password"
                 value={localSettings.newsApiKey || ''}
                 onChange={(e) => handleDefaultSettingChange('newsApiKey', e.target.value)}
-                placeholder="Enter default TheNewsAPI key"
+                placeholder="Enter default TheNewsAPI key (optional)"
+                variant="outlined"
+                sx={fieldStyles}
+              />
+              <TextField
+                fullWidth
+                label="OpenWeather API Key (Weather / Air Quality / Compliments)"
+                type="password"
+                value={localSettings.openweatherApiKey || ''}
+                onChange={(e) => handleDefaultSettingChange('openweatherApiKey', e.target.value)}
+                placeholder="Enter default OpenWeather key"
                 variant="outlined"
                 sx={fieldStyles}
               />
@@ -248,7 +258,9 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                 sx={fieldStyles}
               />
               <Typography sx={{ color: '#999999', fontSize: '0.8rem' }}>
-                These defaults are used when adding new widgets or when widget-specific keys are left empty.
+                <strong>News:</strong> Uses Currents API (primary) with Reddit API fallback. Up to 30 rotating headlines.
+                <br />
+                <strong>Other services:</strong> Defaults are used when adding new widgets or when widget-specific keys are left empty.
               </Typography>
             </Stack>
           </Box>

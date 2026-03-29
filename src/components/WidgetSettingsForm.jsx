@@ -313,12 +313,26 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange }) => {
         <Stack spacing={2}>
           <TextField
             fullWidth
-            label="TheNewsAPI API Key"
+            label="Currents API Key (Primary)"
+            type="password"
+            value={settings.currentsApiKey || ''}
+            onChange={(event) => updateSetting('currentsApiKey', event.target.value)}
+            placeholder="Enter your Currents API key"
+            helperText="Get a key from currentsapi.services for primary news source"
+            variant="outlined"
+            sx={{
+              ...fieldStyles,
+              '& .MuiFormHelperText-root': { color: '#999999' },
+            }}
+          />
+          <TextField
+            fullWidth
+            label="TheNewsAPI API Key (Fallback)"
             type="password"
             value={settings.newsApiKey || ''}
             onChange={(event) => updateSetting('newsApiKey', event.target.value)}
-            placeholder="Enter your API key"
-            helperText="Get a key from thenewsapi.com to load top headlines"
+            placeholder="Enter your TheNewsAPI key"
+            helperText="Optional fallback. Currents + Reddit used if not provided"
             variant="outlined"
             sx={{
               ...fieldStyles,

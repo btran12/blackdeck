@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Typography } from '@mui/material';
 import { Widget } from '../Widget';
 
-export const News = ({ apiKey, showFade = false }) => {
+export const News = ({ apiKey, currentsApiKey, showFade = false }) => {
   const [articles, setArticles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -10,51 +10,136 @@ export const News = ({ apiKey, showFade = false }) => {
   const [isFading, setIsFading] = useState(false);
   const POLL_INTERVAL = 30 * 60 * 1000; // 30 minutes
   const ROTATION_INTERVAL = 15 * 1000; // 15 seconds
-  const TARGET_HEADLINES = 10;
-  const PAGE_SIZE = 3;
-  const MAX_PAGES = 5;
+  const TARGET_HEADLINES = 30;
+
+  // Fetch from Currents API
+  const fetchFromCurrentsAPI = async (key) => {
+    try {
+      const url = `https://api.currentsapi.services/v1/latest-news?apikey=${encodeURIComponent(key)}&language=en&limit=100`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error('Currents API failed');
+      }
+
+      const data = await response.json();
+      return Array.isArray(data.news) ? data.news : [];
+    } catch (err) {
+      console.warn('Currents API error:', err.message);
+      return [];
+    }
+  };
+
+  // Fetch from Reddit API
+  const fetchFromRedditAPI = async () => {
+    try {
+      const subreddits = ['news', 'worldnews', 'UpliftingNews'];
+      const allArticles = [];
+      const seen = new Set();
+
+      for (const subreddit of subreddits) {
+        if (allArticles.length >= TARGET_HEADLINES) break;
+
+        const url = `https://www.reddit.com/r/${subreddit}/top.json?t=day&limit=50`;
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'react-magicmirror/1.0'
+          }
+        });
+
+        if (!response.ok) {
+          continue;
+        }
+
+        const data = await response.json();
+        const posts = data.data?.children || [];
+
+        posts.forEach((post) => {
+          if (allArticles.length >= TARGET_HEADLINES) return;
+
+          const item = post.data;
+          const key = item.id;
+
+          if (!seen.has(key) && item.title && !item.is_self) {
+            seen.add(key);
+            allArticles.push({
+              title: item.title,
+              url: item.url,
+              source: `Reddit - r/${subreddit}`,
+              published_at: new Date(item.created_utc * 1000).toISOString(),
+              image: item.thumbnail && item.thumbnail !== 'self' ? item.thumbnail : null,
+            });
+          }
+        });
+      }
+
+      return allArticles;
+    } catch (err) {
+      console.warn('Reddit API error:', err.message);
+      return [];
+    }
+  };
+
+  // Merge and deduplicate articles from both sources
+  const mergeArticles = (currentsArticles, redditArticles) => {
+    const combined = [];
+    const seen = new Set();
+
+    // Add Currents articles first
+    currentsArticles.forEach((item) => {
+      const key = item.url || item.title;
+      if (!seen.has(key) && combined.length < TARGET_HEADLINES) {
+        seen.add(key);
+        combined.push({
+          title: item.title,
+          url: item.url,
+          source: item.source || 'Currents News',
+          published_at: item.published_at,
+          image: item.image,
+        });
+      }
+    });
+
+    // Add Reddit articles if needed
+    redditArticles.forEach((item) => {
+      const key = item.url || item.title;
+      if (!seen.has(key) && combined.length < TARGET_HEADLINES) {
+        seen.add(key);
+        combined.push(item);
+      }
+    });
+
+    return combined;
+  };
 
   // Fetch news every 30 minutes
   useEffect(() => {
-    if (!apiKey) {
-      setError('API key is not configured to retrieve news');
-      setLoading(false);
-      return;
-    }
-
     const fetchNews = async () => {
       try {
         setLoading(true);
-        const combined = [];
-        const seen = new Set();
+        setError(null);
 
-        for (let page = 1; page <= MAX_PAGES && combined.length < TARGET_HEADLINES; page += 1) {
-          const url = `https://api.thenewsapi.com/v1/news/top?api_token=${encodeURIComponent(apiKey)}&locale=us&categories=politics,finance&limit=${PAGE_SIZE}&page=${page}`;
-          const response = await fetch(url);
+        let currentsArticles = [];
+        let redditArticles = [];
 
-          if (!response.ok) {
-            throw new Error('Failed to fetch news');
-          }
-
-          const data = await response.json();
-          const pageArticles = Array.isArray(data.data) ? data.data : [];
-
-          if (pageArticles.length === 0) {
-            break;
-          }
-
-          pageArticles.forEach((item) => {
-            const key = item.uuid || item.url || `${item.title}-${item.published_at}`;
-            if (!seen.has(key) && combined.length < TARGET_HEADLINES) {
-              seen.add(key);
-              combined.push(item);
-            }
-          });
+        // Try Currents API first (primary)
+        if (currentsApiKey) {
+          currentsArticles = await fetchFromCurrentsAPI(currentsApiKey);
         }
 
-        setArticles(combined);
-        setCurrentIndex(0);
-        setError(null);
+        // Always try Reddit API (fallback/supplement)
+        redditArticles = await fetchFromRedditAPI();
+
+        // Merge results
+        const combined = mergeArticles(currentsArticles, redditArticles);
+
+        if (combined.length === 0) {
+          setError('No articles found. Check API keys and try again.');
+          setArticles([]);
+        } else {
+          setArticles(combined);
+          setCurrentIndex(0);
+        }
       } catch (err) {
         setError(err.message);
         setArticles([]);
@@ -66,7 +151,7 @@ export const News = ({ apiKey, showFade = false }) => {
     fetchNews();
     const pollInterval = setInterval(fetchNews, POLL_INTERVAL);
     return () => clearInterval(pollInterval);
-  }, [apiKey]);
+  }, [currentsApiKey]);
 
   // Rotate through headlines every 15 seconds
   useEffect(() => {

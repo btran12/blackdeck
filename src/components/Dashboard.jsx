@@ -110,7 +110,7 @@ export const Dashboard = () => {
         />
       );
     } else if (widgetType === 'news') {
-      return <WidgetComponent apiKey={widgetSettings.newsApiKey || settings.newsApiKey} showFade={widgetSettings.showFade} />;
+      return <WidgetComponent apiKey={widgetSettings.newsApiKey || settings.newsApiKey} currentsApiKey={widgetSettings.currentsApiKey || settings.currentsApiKey} showFade={widgetSettings.showFade} />;
     } else if (widgetType === 'compliments') {
       return (
         <WidgetComponent
