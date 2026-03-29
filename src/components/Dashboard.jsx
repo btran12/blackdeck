@@ -7,6 +7,8 @@ import { Calendar } from './widgets/Calendar';
 import { News } from './widgets/News';
 import { Compliments } from './widgets/Compliments';
 import { Stocks } from './widgets/Stocks';
+import { Crypto } from './widgets/Crypto';
+import { AirQuality } from './widgets/AirQuality';
 import { Notifications } from './Notifications';
 import { SettingsPanel } from './SettingsPanel';
 import { WidgetContext } from '../context/WidgetContext';
@@ -24,6 +26,8 @@ const WIDGET_COMPONENTS = {
   news: News,
   compliments: Compliments,
   stocks: Stocks,
+  crypto: Crypto,
+  airquality: AirQuality,
 };
 
 export const Dashboard = () => {
@@ -66,6 +70,10 @@ export const Dashboard = () => {
       return <WidgetComponent clockFormat={widgetSettings.clockFormat} showFade={widgetSettings.showFade} />;
     } else if (widgetType === 'stocks') {
       return <WidgetComponent apiKey={widgetSettings.finnhubApiKey} tickers={widgetSettings.stockTickers || []} showFade={widgetSettings.showFade} />;
+    } else if (widgetType === 'crypto') {
+      return <WidgetComponent coins={widgetSettings.cryptoCoins || ['bitcoin', 'ethereum']} showFade={widgetSettings.showFade} />;
+    } else if (widgetType === 'airquality') {
+      return <WidgetComponent apiKey={widgetSettings.openweatherApiKey} location={widgetSettings.location} showFade={widgetSettings.showFade} />;
     } else {
       return <WidgetComponent />;
     }
