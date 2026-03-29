@@ -56,6 +56,10 @@ export const Crypto = ({ coins = ['bitcoin', 'ethereum'], showFade = false }) =>
               symbol: getCoinSymbol(id),
               price: info.usd,
               change24h: info.usd_24h_change,
+              change24hUsd:
+                info.usd != null && info.usd_24h_change != null
+                  ? info.usd - (info.usd / (1 + info.usd_24h_change / 100))
+                  : null,
             };
           })
           .filter(Boolean);
@@ -82,7 +86,13 @@ export const Crypto = ({ coins = ['bitcoin', 'ethereum'], showFade = false }) =>
     return `$${price.toFixed(6)}`;
   };
 
-  const formatChange = (change) => {
+  const formatDollarChange = (change) => {
+    if (change == null) return '—';
+    const sign = change >= 0 ? '+' : '';
+    return `${sign}$${Math.abs(change).toFixed(2)}`;
+  };
+
+  const formatPercentChange = (change) => {
     if (change == null) return '—';
     const sign = change >= 0 ? '+' : '';
     return `${sign}${change.toFixed(2)}%`;
@@ -101,7 +111,7 @@ export const Crypto = ({ coins = ['bitcoin', 'ethereum'], showFade = false }) =>
 
         {!loading && !error && prices.length > 0 && (
           <Box sx={{ flex: 1, overflowY: 'auto' }}>
-            {prices.map(({ id, symbol, price, change24h }) => {
+            {prices.map(({ id, symbol, price, change24h, change24hUsd }) => {
               const isPositive = change24h == null ? null : change24h >= 0;
               const changeColor =
                 isPositive === null ? '#888888' : isPositive ? '#4caf50' : '#f44336';
@@ -133,7 +143,7 @@ export const Crypto = ({ coins = ['bitcoin', 'ethereum'], showFade = false }) =>
                       {formatPrice(price)}
                     </Typography>
                     <Typography sx={{ color: changeColor, fontSize: '0.78rem' }}>
-                      {formatChange(change24h)}
+                      {`${formatDollarChange(change24hUsd)} (${formatPercentChange(change24h)})`}
                     </Typography>
                   </Box>
                 </Box>
