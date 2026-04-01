@@ -26,6 +26,7 @@ import { Stocks } from './widgets/Stocks';
 import { Crypto } from './widgets/Crypto';
 import { AirQuality } from './widgets/AirQuality';
 import { Sports } from './widgets/Sports';
+import { Animations } from './widgets/Animations';
 import { Notifications } from './Notifications';
 import { SettingsPanel } from './SettingsPanel';
 import { WidgetSettingsForm } from './WidgetSettingsForm';
@@ -50,6 +51,7 @@ const WIDGET_COMPONENTS = {
   crypto: Crypto,
   airquality: AirQuality,
   sports: Sports,
+  animations: Animations,
 };
 
 export const Dashboard = () => {
@@ -154,6 +156,14 @@ export const Dashboard = () => {
       );
     } else if (widgetType === 'holidays') {
       return <WidgetComponent apiKey={widgetSettings.apiNinjasApiKey || settings.apiNinjasApiKey} showFade={widgetSettings.showFade} />;
+    } else if (widgetType === 'animations') {
+      return (
+        <WidgetComponent
+          animationType={widgetSettings.animationType}
+          rotationIntervalMinutes={widgetSettings.animationRotationMinutes}
+          showFade={widgetSettings.showFade}
+        />
+      );
     } else {
       return <WidgetComponent />;
     }

@@ -18,6 +18,7 @@ export const WIDGET_OPTIONS = [
   { value: 'crypto', label: 'Crypto' },
   { value: 'airquality', label: 'Air Quality' },
   { value: 'sports', label: 'Sports' },
+  { value: 'animations', label: 'Animations' },
 ];
 
 export const WIDGET_LABELS = {
@@ -32,6 +33,7 @@ export const WIDGET_LABELS = {
   crypto: 'Crypto',
   airquality: 'Air Quality',
   sports: 'Sports',
+  animations: 'Animations',
 };
 
 export const LAYOUT_PRESETS = {
@@ -148,6 +150,7 @@ export const DEFAULT_WIDGET_FADE = {
   crypto: false,
   airquality: false,
   sports: false,
+  animations: false,
 };
 
 export const DEFAULT_LAYOUT = [
@@ -262,6 +265,13 @@ export const createWidgetSettingsForType = (widgetType, defaults = {}) => {
         sportsLeagues: defaults.sportsLeagues || [],
         sportsTeams: defaults.sportsTeams || '',
         showFade: defaults.showFade ?? DEFAULT_WIDGET_FADE.sports,
+      };
+    case 'animations':
+      return {
+        widgetType,
+        animationType: defaults.animationType || 'starfield',
+        animationRotationMinutes: defaults.animationRotationMinutes || 0,
+        showFade: defaults.showFade ?? DEFAULT_WIDGET_FADE.animations,
       };
     default:
       return {

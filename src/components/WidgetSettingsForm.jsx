@@ -737,6 +737,59 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange }) => {
         </Stack>
       );
     }
+    case 'animations': {
+      const animationOptions = [
+        { value: 'starfield', label: 'Starfield' },
+        { value: 'matrix', label: 'Matrix Rain' },
+        { value: 'bubbles', label: 'Bubbles' },
+        { value: 'fireworks', label: 'Fireworks' },
+        { value: 'rain', label: 'Rain' },
+        { value: 'snow', label: 'Snowfall' },
+        { value: 'fish', label: '\uD83D\uDC20 Fish Aquarium' },
+        { value: 'birds', label: '\uD83D\uDC26 Birds' },
+        { value: 'fireflies', label: '\u2728 Fireflies' },
+        { value: 'cats', label: '\uD83D\uDC08 Cats' },
+        { value: 'dna', label: '\uD83E\uDDEC DNA Helix' },
+        { value: 'sleepycat', label: '\uD83D\uDE3B Sleepy Cat' },
+      ];
+
+      return (
+        <Stack spacing={2}>
+          <FormControl fullWidth variant="outlined">
+            <InputLabel sx={{ color: '#cccccc' }}>Animation Type</InputLabel>
+            <Select
+              value={settings.animationType || 'starfield'}
+              label="Animation Type"
+              onChange={(event) => updateSetting('animationType', event.target.value)}
+              sx={selectStyles}
+              MenuProps={menuProps}
+            >
+              {animationOptions.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            fullWidth
+            label="Rotate Every (minutes)"
+            type="number"
+            value={settings.animationRotationMinutes ?? 0}
+            onChange={(event) => updateSetting('animationRotationMinutes', Number(event.target.value))}
+            placeholder="0"
+            helperText="0 = no rotation. Cycles through all animation types."
+            variant="outlined"
+            inputProps={{ min: 0, max: 60 }}
+            sx={{
+              ...fieldStyles,
+              '& .MuiFormHelperText-root': { color: '#999999' },
+            }}
+          />
+          {renderFadeToggle()}
+        </Stack>
+      );
+    }
     default:
       return null;
   }
