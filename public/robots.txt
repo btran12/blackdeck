@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://btran12.github.io/blackdeck/sitemap.xml
