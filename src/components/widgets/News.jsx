@@ -4,7 +4,7 @@ import { Widget } from '../Widget';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-export const News = ({ apiKey, currentsApiKey, pollIntervalMinutes = 30, showFade = false }) => {
+export const News = ({ apiKey, currentsApiKey, pollIntervalMinutes = 180, showFade = false }) => {
   const [articles, setArticles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -114,7 +114,7 @@ export const News = ({ apiKey, currentsApiKey, pollIntervalMinutes = 30, showFad
     return combined;
   };
 
-  // Fetch news every 30 minutes
+  // Fetch news every 180 minutes by default
   useEffect(() => {
     const fetchNews = async () => {
       try {
