@@ -395,7 +395,7 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange }) => {
           {renderPollingField(
             'Poll Interval (Minutes)',
             'newsPollIntervalMinutes',
-            30,
+            180,
             'How often to refresh headlines'
           )}
           {renderFadeToggle()}

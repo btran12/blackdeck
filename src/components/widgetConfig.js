@@ -217,7 +217,7 @@ export const createWidgetSettingsForType = (widgetType, defaults = {}) => {
         widgetType,
         newsApiKey: defaults.newsApiKey || '',
         currentsApiKey: defaults.currentsApiKey || '',
-        newsPollIntervalMinutes: defaults.newsPollIntervalMinutes || 30,
+        newsPollIntervalMinutes: defaults.newsPollIntervalMinutes || 180,
         showFade: defaults.showFade ?? DEFAULT_WIDGET_FADE.news,
       };
     case 'holidays':
