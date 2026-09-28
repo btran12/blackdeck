@@ -35,7 +35,7 @@ Parameters:
 
   AllowedOrigins:
     Type: String
-    Default: http://localhost:5173,https://d84l1y8p4kdic.cloudfront.net
+    Default: http://localhost:5173,https://d84l1y8p4kdic.cloudfront.net,https://blackdeck.xyz,https://www.blackdeck.xyz,https://baoservis.com
     Description: Comma-separated list of frontend origins allowed to call the API.
 
   OpenWeatherApiKey:

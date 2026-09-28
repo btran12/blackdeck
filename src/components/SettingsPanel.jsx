@@ -249,9 +249,11 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
       return;
     }
 
-    if (auth.hasDummyPremium) {
+    if (auth.isPremium) {
       setPremiumStatus('premium');
-      setEntitlementDetail('Activated locally via dummy checkout (demo mode).');
+      setEntitlementDetail(
+        auth.hasDummyPremium ? 'Activated locally via dummy checkout (demo mode).' : ''
+      );
       return;
     }
 
@@ -293,7 +295,7 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
     fetchEntitlement();
 
     return () => controller.abort();
-  }, [isOpen, auth.isAuthenticated, auth.user?.accessToken, auth.hasDummyPremium]);
+  }, [isOpen, auth.isAuthenticated, auth.user?.accessToken, auth.isPremium, auth.hasDummyPremium]);
 
   useEffect(() => {
     if (!auth.isAuthenticated) return;

@@ -48,7 +48,7 @@ aws cloudformation deploy \
     CognitoUserPoolId=us-east-1_yz3WT2sdT \
     CognitoAppClientId=67vv566d0rt1g3odmekd48chjg \
     CognitoRegion=us-east-1 \
-    AllowedOrigins='http://localhost:5173,https://d84l1y8p4kdic.cloudfront.net' \
+    AllowedOrigins='http://localhost:5173,https://d84l1y8p4kdic.cloudfront.net,https://blackdeck.xyz,https://www.blackdeck.xyz,https://baoservis.com' \
     OpenWeatherApiKey='YOUR_OPENWEATHER_KEY' \
     CurrentsApiKey='YOUR_CURRENTS_API_KEY' \
     FinnhubApiKey='YOUR_FINNHUB_KEY' \

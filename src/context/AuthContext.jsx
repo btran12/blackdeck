@@ -409,7 +409,7 @@ export const AuthProvider = ({ children }) => {
       if (!isLocalPremiumFallbackEnabled()) {
         return {
           success: false,
-          message: `Could not update subscription table: ${parseAuthError(err)}. Verify the hardcoded activation endpoint and redeploy backend routes if needed.`,
+            message: `Could not update subscription table: ${parseAuthError(err)}. Check API Gateway CORS AllowedOrigins for this site's domain and verify the activation endpoint.`,
         };
       }
     }
