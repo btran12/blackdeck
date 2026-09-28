@@ -571,26 +571,6 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
   const layoutPresetOptions = Object.values(LAYOUT_PRESETS);
   const activeLayoutPreset = getLayoutPreset(localLayoutPreset);
   const premiumChip = getPremiumChipConfig(premiumStatus);
-  const accountStatus = auth.isLoading
-    ? {
-      label: 'Checking...',
-      color: '#90caf9',
-      borderColor: '#90caf9',
-      detail: 'Checking sign-in status...',
-    }
-    : auth.isAuthenticated
-      ? {
-        label: 'Logged In',
-        color: '#c8e6c9',
-        borderColor: '#66bb6a',
-        detail: accountLabel,
-      }
-      : {
-        label: 'Logged Out',
-        color: '#ffcc80',
-        borderColor: '#ffb74d',
-        detail: 'Sign in to sync account features.',
-      };
 
   return (
     <Dialog
@@ -655,49 +635,6 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
           <Box>
             <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 2 }}>Account</Typography>
             <Stack spacing={1.5}>
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 1.5,
-                  p: 1.25,
-                  borderRadius: 2,
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  bgcolor: 'rgba(255,255,255,0.03)',
-                  flexWrap: 'wrap',
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box
-                    sx={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      bgcolor: accountStatus.borderColor,
-                      boxShadow: `0 0 0 3px ${accountStatus.borderColor}33`,
-                    }}
-                  />
-                  <Typography sx={{ color: '#d7dde7', fontSize: '0.88rem', fontWeight: 600 }}>
-                    Account Status
-                  </Typography>
-                </Box>
-                <Chip
-                  size="small"
-                  label={accountStatus.label}
-                  sx={{
-                    height: 22,
-                    bgcolor: 'transparent',
-                    color: accountStatus.color,
-                    border: `1px solid ${accountStatus.borderColor}`,
-                    fontWeight: 700,
-                  }}
-                />
-                <Typography sx={{ color: '#aeb7c2', fontSize: '0.8rem', width: '100%' }}>
-                  {accountStatus.detail}
-                </Typography>
-              </Box>
-
               {auth.isLoading && (
                 <Typography sx={{ color: '#999999', fontSize: '0.9rem' }}>Checking sign-in status...</Typography>
               )}
@@ -1007,6 +944,8 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
               </Typography>
             </Stack>
           </Box>
+
+          <Divider sx={{ borderColor: 'rgba(255,255,255,0.16)' }} />
 
           <Box>
             <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 3 }}>Dashboard Layout</Typography>

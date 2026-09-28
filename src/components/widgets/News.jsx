@@ -25,8 +25,12 @@ export const News = ({ apiKey, currentsApiKey, pollIntervalMinutes = 180, showFa
   // Fetch from Currents API
   const fetchFromCurrentsAPI = async (key) => {
     try {
-      const url = `https://api.currentsapi.services/v1/latest-news?apikey=${encodeURIComponent(key)}&language=en&limit=100`;
-      const response = await fetch(url);
+      const url = 'https://api.currentsapi.services/v1/latest-news?language=en';
+      const response = await fetch(url, {
+        headers: {
+          Authorization: key,
+        },
+      });
 
       if (!response.ok) {
         throw new Error('Currents API failed');
