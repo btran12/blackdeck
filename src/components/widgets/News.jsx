@@ -28,7 +28,7 @@ export const News = ({ apiKey, currentsApiKey, pollIntervalMinutes = 180, showFa
       const url = 'https://api.currentsapi.services/v1/latest-news?language=en';
       const response = await fetch(url, {
         headers: {
-          Authorization: key,
+          Authorization: `Bearer ${key}`,
         },
       });
 
@@ -138,8 +138,12 @@ export const News = ({ apiKey, currentsApiKey, pollIntervalMinutes = 180, showFa
 
         // Fetch Currents API - either direct (free) or from backend (premium)
         if (usePremium && backendService.data) {
-          // Premium: use backend service data
-          currentsArticles = backendService.data;
+          // Currents wraps articles in a `news` property; support array responses too.
+          currentsArticles = Array.isArray(backendService.data)
+            ? backendService.data
+            : Array.isArray(backendService.data.news)
+              ? backendService.data.news
+              : [];
         } else if (!usePremium && currentsApiKey) {
           // Free: call Currents API directly if key available
           currentsArticles = await fetchFromCurrentsAPI(currentsApiKey);
