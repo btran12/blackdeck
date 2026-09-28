@@ -6,6 +6,22 @@ import EventNoteOutlinedIcon from '@mui/icons-material/EventNoteOutlined';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
+const getUpcomingHolidays = (data) => {
+  if (!Array.isArray(data)) return [];
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return data
+    .filter((holiday) => {
+      const holidayDate = new Date(holiday.date);
+      holidayDate.setHours(0, 0, 0, 0);
+      return !Number.isNaN(holidayDate.getTime()) && holidayDate >= today;
+    })
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .slice(0, 10);
+};
+
 export const Holidays = ({ apiKey = '', pollIntervalMinutes = 720, showFade = false, usePremium = false }) => {
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +39,7 @@ export const Holidays = ({ apiKey = '', pollIntervalMinutes = 720, showFade = fa
     // Use backend service if premium
     if (usePremium) {
       if (backendService.data) {
-        setHolidays(backendService.data);
+        setHolidays(getUpcomingHolidays(backendService.data));
       }
       setLoading(backendService.loading);
       setError(backendService.error);
@@ -54,20 +70,7 @@ export const Holidays = ({ apiKey = '', pollIntervalMinutes = 720, showFade = fa
 
         const data = await response.json();
 
-        // Filter holidays that are today or in the future, and get the next 5
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const upcomingHolidays = data
-          .filter((holiday) => {
-            const holidayDate = new Date(holiday.date);
-            holidayDate.setHours(0, 0, 0, 0);
-            return holidayDate >= today;
-          })
-          .sort((a, b) => new Date(a.date) - new Date(b.date))
-          .slice(0, 10);
-
-        setHolidays(upcomingHolidays);
+        setHolidays(getUpcomingHolidays(data));
         setError(null);
       } catch (err) {
         console.error('Holiday fetch error:', err);

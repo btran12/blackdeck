@@ -5,8 +5,10 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { Widget } from '../Widget';
+import { getServiceEndpoint } from '../../config/endpoints';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const CALENDAR_PROXY_PATH = '/v1/services/calendar-ics';
 
 // Parse a bare iCal date/datetime value string into a Date.
 // Supports: YYYYMMDD, YYYYMMDDTHHmmSS, YYYYMMDDTHHmmSSZ
@@ -22,7 +24,8 @@ const parseIcsDate = (value) => {
   // Date-time
   const h = parseInt(value.slice(9, 11), 10);
   const mi = parseInt(value.slice(11, 13), 10);
-  const s = parseInt(value.slice(13, 15), 10);
+  const s = value.length >= 15 ? parseInt(value.slice(13, 15), 10) : 0;
+  if ([y, mo, d, h, mi, s].some((n) => Number.isNaN(n))) return null;
   return value.endsWith('Z')
     ? new Date(Date.UTC(y, mo, d, h, mi, s))
     : new Date(y, mo, d, h, mi, s);
@@ -80,6 +83,7 @@ export const Calendar = ({ icsUrl, pollIntervalMinutes = 30, showFade = false })
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const normalizedPollIntervalMs = clamp(Number(pollIntervalMinutes), 1, 1440) * 60 * 1000;
+  const calendarProxyEndpoint = getServiceEndpoint(CALENDAR_PROXY_PATH);
 
   const fetchEvents = useCallback(async () => {
     if (!icsUrl) {
@@ -89,8 +93,15 @@ export const Calendar = ({ icsUrl, pollIntervalMinutes = 30, showFade = false })
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(icsUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const sourceUrl = calendarProxyEndpoint
+        ? `${calendarProxyEndpoint}?${new URLSearchParams({ url: icsUrl }).toString()}`
+        : icsUrl;
+
+      const res = await fetch(sourceUrl);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || `HTTP ${res.status}`);
+      }
       const text = await res.text();
       const parsed = parseIcs(text);
       // Keep only future/ongoing events, sorted by start
@@ -106,11 +117,16 @@ export const Calendar = ({ icsUrl, pollIntervalMinutes = 30, showFade = false })
         .sort((a, b) => a.start - b.start);
       setEvents(upcoming);
     } catch (e) {
-      setError(e.message);
+      // TypeError is commonly caused by browser/network policy failures.
+      if (e instanceof TypeError) {
+        setError('Unable to fetch calendar events. Check URL accessibility and try again.');
+      } else {
+        setError(e.message);
+      }
     } finally {
       setLoading(false);
     }
-  }, [icsUrl]);
+  }, [icsUrl, calendarProxyEndpoint]);
 
   // Fetch on mount / URL change, then refresh on interval
   useEffect(() => {

@@ -20,11 +20,17 @@ This stack creates the AWS backend for Blackdeck's premium feature with complete
 - `GET /v1/services/crypto` - Cryptocurrency prices
 - `GET /v1/services/holidays` - Upcoming US holidays
 - `GET /v1/services/sports` - Sports scores and events
+- `GET /v1/services/calendar-ics?url=https://...` - ICS proxy for calendar feeds that block browser CORS
 
-All endpoints:
+Premium service endpoints:
 - Require Cognito JWT authentication
 - Are blocked for free users (403 Forbidden)
 - Use backend-managed API keys (never exposed to frontend)
+
+Calendar ICS proxy endpoint:
+- Does not require authentication
+- Accepts only `https` source URLs
+- Returns ICS content (`text/calendar`) so frontend can parse without cross-origin issues
 
 ## Deployment
 
@@ -159,6 +165,17 @@ Query Parameters:
 - `endDate` (optional): YYYYMMDD format
 
 Response: ESPN scoreboard object with events, scores, status
+
+### Calendar ICS Proxy
+
+Use this for calendar feeds that are valid but blocked by browser CORS when fetched directly from the widget:
+
+```bash
+curl "https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/prod/v1/services/calendar-ics?url=https%3A%2F%2Foutlook.office365.com%2Fowa%2Fcalendar%2F...%2Fcalendar.ics"
+```
+
+Query Parameters:
+- `url` (required): Source ICS feed URL (https only)
 
 ## DynamoDB Schema
 

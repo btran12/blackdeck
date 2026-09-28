@@ -96,6 +96,7 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange, isPrem
   const [dragOverTickerIndex, setDragOverTickerIndex] = useState(null);
   const debounceTimerRef = useRef(null);
   const searchCacheRef = useRef({});
+  const citySearchRequestRef = useRef(0);
 
   useEffect(() => () => {
     if (debounceTimerRef.current) {
@@ -107,22 +108,29 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange, isPrem
     onChange(key, value);
   };
 
-  const fetchCitySuggestions = async (query, apiKey) => {
+  const fetchCitySuggestions = async (query, apiKey, requestId) => {
     if (!query || query.length < 2) {
-      setCitySuggestions([]);
+      if (requestId === citySearchRequestRef.current) {
+        setCitySuggestions([]);
+        setCityLoading(false);
+      }
       return;
     }
 
     const cacheKey = `${apiKey || 'fallback'}:${query.toLowerCase()}`;
     if (searchCacheRef.current[cacheKey]) {
-      setCitySuggestions(searchCacheRef.current[cacheKey]);
+      if (requestId === citySearchRequestRef.current) {
+        setCitySuggestions(searchCacheRef.current[cacheKey]);
+      }
       return;
     }
 
     if (!apiKey) {
       const fallbackCities = FALLBACK_CITIES.filter((city) => city.toLowerCase().includes(query.toLowerCase()));
       searchCacheRef.current[cacheKey] = fallbackCities;
-      setCitySuggestions(fallbackCities);
+      if (requestId === citySearchRequestRef.current) {
+        setCitySuggestions(fallbackCities);
+      }
       return;
     }
 
@@ -131,6 +139,8 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange, isPrem
       const response = await fetch(
         `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=10&appid=${apiKey}`
       );
+      if (!response.ok) throw new Error(`City search failed: ${response.status}`);
+
       const data = await response.json();
 
       if (Array.isArray(data)) {
@@ -141,27 +151,42 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange, isPrem
           return label;
         });
         searchCacheRef.current[cacheKey] = formatted;
-        setCitySuggestions(formatted);
+        if (requestId === citySearchRequestRef.current) {
+          setCitySuggestions(formatted);
+        }
       } else {
-        setCitySuggestions([]);
+        if (requestId === citySearchRequestRef.current) {
+          setCitySuggestions([]);
+        }
       }
     } catch (error) {
       console.error('City search error:', error);
-      setCitySuggestions(FALLBACK_CITIES.filter((city) => city.toLowerCase().includes(query.toLowerCase())));
+      if (requestId === citySearchRequestRef.current) {
+        setCitySuggestions(FALLBACK_CITIES.filter((city) => city.toLowerCase().includes(query.toLowerCase())));
+      }
     } finally {
-      setCityLoading(false);
+      if (requestId === citySearchRequestRef.current) {
+        setCityLoading(false);
+      }
     }
   };
 
   const handleCityInputChange = (newInputValue) => {
     updateSetting('location', newInputValue);
+    const requestId = ++citySearchRequestRef.current;
 
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
+    if (newInputValue.trim().length < 2) {
+      setCitySuggestions([]);
+      setCityLoading(false);
+      return;
+    }
+
     debounceTimerRef.current = setTimeout(() => {
-      fetchCitySuggestions(newInputValue, settings.openweatherApiKey);
+      fetchCitySuggestions(newInputValue, settings.openweatherApiKey, requestId);
     }, 300);
   };
 

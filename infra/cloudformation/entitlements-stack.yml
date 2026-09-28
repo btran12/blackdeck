@@ -2,7 +2,8 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
   Blackdeck entitlement backend. Creates a DynamoDB subscriptions table, a Lambda
   entitlement handler, and a Cognito-protected API Gateway HTTP API endpoint at
-  GET /v1/entitlements/me and POST /v1/subscriptions/activate-demo.
+  GET /v1/entitlements/me and POST /v1/subscriptions/activate-demo, plus
+  backend service proxy routes.
 
 Parameters:
   ProjectName:
@@ -784,6 +785,125 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${EntitlementsApi}/*/GET/v1/services/holidays
 
+  CalendarIcsProxyFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${ProjectName}-${EnvironmentName}-calendar-ics-proxy
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 10
+      MemorySize: 256
+      Role: !GetAtt ServicesFunctionRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import urllib.request
+          import urllib.error
+          import urllib.parse
+
+          MAX_ICS_BYTES = 2 * 1024 * 1024
+
+
+          def _json_response(status_code, body):
+              return {
+                  "statusCode": status_code,
+                  "headers": {"Content-Type": "application/json"},
+                  "body": json.dumps(body)
+              }
+
+
+          def _ics_response(status_code, body):
+              return {
+                  "statusCode": status_code,
+                  "headers": {
+                      "Content-Type": "text/calendar; charset=utf-8",
+                      "Cache-Control": "max-age=300"
+                  },
+                  "body": body
+              }
+
+
+          def handler(event, context):
+              query_string = event.get("rawQueryString", "")
+              if not query_string:
+                  return _json_response(400, {"message": "url query param required"})
+
+              params = urllib.parse.parse_qs(query_string, keep_blank_values=True)
+              source_url = (params.get("url", [""])[0] or "").strip()
+              if not source_url:
+                  return _json_response(400, {"message": "url query param required"})
+
+              if len(source_url) > 2048:
+                  return _json_response(400, {"message": "url is too long"})
+
+              parsed = urllib.parse.urlparse(source_url)
+              if parsed.scheme != "https":
+                  return _json_response(400, {"message": "Only https URLs are allowed"})
+
+              blocked_hosts = {"localhost", "127.0.0.1", "::1", "169.254.169.254"}
+              host = (parsed.hostname or "").lower()
+              if host in blocked_hosts:
+                  return _json_response(400, {"message": "Host is not allowed"})
+
+              try:
+                  req = urllib.request.Request(
+                      source_url,
+                      headers={
+                          "Accept": "text/calendar,text/plain;q=0.9,*/*;q=0.8",
+                          "User-Agent": "BlackdeckCalendar/1.0 (+https://blackdeck.xyz)",
+                      },
+                  )
+                  with urllib.request.urlopen(req, timeout=8) as response:
+                      content_type = (response.headers.get("Content-Type") or "").lower()
+                      payload = response.read(MAX_ICS_BYTES + 1)
+
+                  if len(payload) > MAX_ICS_BYTES:
+                      return _json_response(413, {"message": "ICS response too large"})
+
+                  text = payload.decode("utf-8", errors="replace")
+                  if "BEGIN:VCALENDAR" not in text.upper():
+                      return _json_response(
+                          502,
+                          {
+                              "message": "Upstream response is not a valid ICS calendar",
+                              "contentType": content_type,
+                          },
+                      )
+
+                  return _ics_response(200, text)
+              except urllib.error.HTTPError as e:
+                  details = e.read().decode("utf-8", errors="replace")[:300]
+                  return _json_response(502, {"message": f"Calendar source HTTP {e.code}: {details}"})
+              except urllib.error.URLError as e:
+                  return _json_response(503, {"message": f"Unable to reach calendar source: {str(e)}"})
+              except Exception as e:
+                  return _json_response(500, {"message": f"Internal error: {str(e)}"})
+
+  CalendarIcsProxyIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref EntitlementsApi
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      IntegrationUri: !GetAtt CalendarIcsProxyFunction.Arn
+      PayloadFormatVersion: '2.0'
+
+  CalendarIcsProxyRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref EntitlementsApi
+      RouteKey: GET /v1/services/calendar-ics
+      AuthorizationType: NONE
+      Target: !Sub integrations/${CalendarIcsProxyIntegration}
+
+  CalendarIcsProxyFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref CalendarIcsProxyFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${EntitlementsApi}/*/GET/v1/services/calendar-ics
+
   CryptoFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -920,6 +1040,10 @@ Outputs:
   HolidaysEndpoint:
     Description: Holidays service endpoint (premium only). Returns US public holidays.
     Value: !Sub https://${EntitlementsApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/v1/services/holidays
+
+  CalendarIcsProxyEndpoint:
+    Description: Calendar ICS proxy endpoint. Query param - url (required, https only). Public route for CORS-safe ICS fetches.
+    Value: !Sub https://${EntitlementsApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/v1/services/calendar-ics
 
   SportsEndpoint:
     Description: Sports service endpoint (premium only). Query params - sport (required, e.g., baseball), league (required, e.g., mlb), startDate (optional), endDate (optional).
