@@ -825,6 +825,9 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange, isPrem
       );
     }
     case 'animations': {
+      const selectedAnimationType = settings.animationType === 'sleepycat'
+        ? 'nekocat'
+        : (settings.animationType || 'starfield');
       const animationOptions = [
         { value: 'starfield', label: 'Starfield' },
         { value: 'matrix', label: 'Matrix Rain' },
@@ -837,7 +840,7 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange, isPrem
         { value: 'fireflies', label: '\u2728 Fireflies' },
         { value: 'cats', label: '\uD83D\uDC08 Cats' },
         { value: 'dna', label: '\uD83E\uDDEC DNA Helix' },
-        { value: 'sleepycat', label: '\uD83D\uDE3B Sleepy Cat' },
+        { value: 'nekocat', label: '\uD83D\uDC31 Neko Cat' },
       ];
 
       return (
@@ -845,7 +848,7 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange, isPrem
           <FormControl fullWidth variant="outlined">
             <InputLabel sx={{ color: '#cccccc' }}>Animation Type</InputLabel>
             <Select
-              value={settings.animationType || 'starfield'}
+              value={selectedAnimationType}
               label="Animation Type"
               onChange={(event) => updateSetting('animationType', event.target.value)}
               sx={selectStyles}

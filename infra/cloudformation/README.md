@@ -11,6 +11,7 @@ This stack creates the AWS backend for Blackdeck's premium feature with complete
 
 **Entitlements:**
 - `GET /v1/entitlements/me` - Check user premium status
+- `POST /v1/subscriptions/activate-demo` - Activate premium in DynamoDB for the signed-in user (demo flow)
 
 **Premium Services:**
 - `GET /v1/services/weather` - Current weather data
@@ -56,10 +57,10 @@ aws cloudformation deploy \
 
 ## After deploy
 
-CloudFormation outputs will show all service endpoints. Update `.env.local`:
+CloudFormation outputs will show all service endpoints. Frontend endpoint URLs are currently hardcoded in [src/config/endpoints.js](../../src/config/endpoints.js), so update that file if your API ID/stage changes.
 
 ```bash
-VITE_ENTITLEMENT_ENDPOINT=https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/prod/v1/entitlements/me
+# Entitlement and demo activation endpoints are hardcoded in src/config/endpoints.js
 ```
 
 ## Using the Endpoints
@@ -80,6 +81,15 @@ Response:
   "plan": "free",
   "status": "active"
 }
+```
+
+### Activate Premium (Demo Checkout)
+
+This simulates a successful checkout and writes/updates the user's premium record in DynamoDB:
+
+```bash
+curl -X POST -H "Authorization: Bearer $JWT_TOKEN" \
+  "https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/prod/v1/subscriptions/activate-demo"
 ```
 
 ### Weather (Premium Only)

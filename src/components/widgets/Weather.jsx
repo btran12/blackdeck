@@ -32,7 +32,8 @@ export const Weather = ({
   const backendService = useBackendService(
     '/v1/services/weather',
     { location, tempUnit },
-    pollIntervalMinutes
+    pollIntervalMinutes,
+    usePremium
   );
 
   useEffect(() => {

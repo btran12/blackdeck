@@ -1,15 +1,18 @@
 import React from 'react';
 import { Amplify } from 'aws-amplify';
 import {
+  confirmResetPassword,
   confirmSignIn,
   confirmSignUp,
   fetchAuthSession,
   fetchUserAttributes,
   getCurrentUser,
+  resetPassword,
   signIn,
   signOut,
   signUp,
 } from 'aws-amplify/auth';
+import { ENTITLEMENT_ENDPOINT, SUBSCRIPTION_ACTIVATION_ENDPOINT } from '../config/endpoints';
 
 const region = import.meta.env.VITE_COGNITO_REGION || 'us-east-1';
 const userPoolId = import.meta.env.VITE_COGNITO_USER_POOL_ID || 'us-east-1_yz3WT2sdT';
@@ -29,6 +32,79 @@ Amplify.configure({
 
 export const AuthContext = React.createContext(null);
 
+const DUMMY_PREMIUM_STORAGE_KEY = 'blackdeck_dummy_premium_users_v1';
+
+const isLocalPremiumFallbackEnabled = () => {
+  return String(import.meta.env.VITE_ENABLE_LOCAL_PREMIUM_FALLBACK || 'false').toLowerCase() === 'true';
+};
+
+const readDummyPremiumUsers = () => {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const raw = window.localStorage.getItem(DUMMY_PREMIUM_STORAGE_KEY);
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeDummyPremiumUsers = (users) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(DUMMY_PREMIUM_STORAGE_KEY, JSON.stringify(users));
+  } catch {
+    // Ignore storage write errors in demo mode.
+  }
+};
+
+const getUserPremiumKeys = (user) => {
+  if (!user) return [];
+
+  const keys = [user.userId, user.email, user.username]
+    .filter((value) => typeof value === 'string' && value.trim())
+    .map((value) => value.trim().toLowerCase());
+
+  return [...new Set(keys)];
+};
+
+const hasDummyPremiumForUser = (user) => {
+  const keys = getUserPremiumKeys(user);
+  if (!keys.length) return false;
+
+  const premiumUsers = readDummyPremiumUsers();
+  return keys.some((key) => premiumUsers.includes(key));
+};
+
+const activateDummyPremiumForUser = (user) => {
+  const keys = getUserPremiumKeys(user);
+  if (!keys.length) return false;
+
+  const premiumUsers = readDummyPremiumUsers();
+  const nextUsers = [...new Set([...premiumUsers, ...keys])];
+  writeDummyPremiumUsers(nextUsers);
+  return true;
+};
+
+const isPremiumEntitlementPayload = (payload) => {
+  const premiumFlag = payload?.premium;
+  if (premiumFlag === true) return true;
+
+  const plan = payload?.plan || payload?.subscription?.plan;
+  const status = payload?.status || payload?.subscription?.status;
+
+  if (typeof plan !== 'string' || plan.toLowerCase() !== 'premium') {
+    return false;
+  }
+
+  if (!status) return true;
+  return ['active', 'trialing'].includes(String(status).toLowerCase());
+};
+
 const parseAuthError = (err) => {
   if (typeof err?.message === 'string' && err.message.trim()) {
     return err.message;
@@ -44,6 +120,7 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = React.useState('');
   const [signInStep, setSignInStep] = React.useState('');
   const [isPremium, setIsPremium] = React.useState(false);
+  const [hasDummyPremium, setHasDummyPremium] = React.useState(false);
 
   const refreshSession = React.useCallback(async () => {
     try {
@@ -51,23 +128,27 @@ export const AuthProvider = ({ children }) => {
       const session = await fetchAuthSession();
       const attributes = await fetchUserAttributes();
       const accessToken = session.tokens?.accessToken?.toString() || '';
-
-      setUser({
+      const resolvedUser = {
         username: currentUser.username,
         userId: currentUser.userId,
         email: attributes.email || currentUser.signInDetails?.loginId || '',
         name: attributes.name || '',
         accessToken,
-      });
+      };
+      const localPremium = hasDummyPremiumForUser(resolvedUser);
+
+      setUser(resolvedUser);
       setIsAuthenticated(Boolean(accessToken));
       setSignInStep('');
       setError('');
+      setHasDummyPremium(localPremium);
+
+      let premiumFromEntitlement = false;
 
       // Fetch premium status after successful auth
       if (accessToken) {
         try {
-          const entitlementEndpoint = import.meta.env.VITE_ENTITLEMENT_ENDPOINT || '/v1/entitlements/me';
-          const response = await fetch(entitlementEndpoint, {
+          const response = await fetch(ENTITLEMENT_ENDPOINT, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${accessToken}`,
@@ -76,30 +157,21 @@ export const AuthProvider = ({ children }) => {
 
           if (response.ok) {
             const payload = await response.json();
-            const premiumFlag = payload?.premium;
-            if (premiumFlag === true) {
-              setIsPremium(true);
-            } else {
-              const plan = payload?.plan || payload?.subscription?.plan;
-              if (typeof plan === 'string' && plan.toLowerCase() === 'premium') {
-                setIsPremium(true);
-              } else {
-                setIsPremium(false);
-              }
-            }
-          } else {
-            setIsPremium(false);
+            premiumFromEntitlement = isPremiumEntitlementPayload(payload);
           }
         } catch {
-          setIsPremium(false);
+          premiumFromEntitlement = false;
         }
       }
+
+      setIsPremium(localPremium || premiumFromEntitlement);
 
       return true;
     } catch {
       setUser(null);
       setIsAuthenticated(false);
       setIsPremium(false);
+      setHasDummyPremium(false);
       return false;
     }
   }, []);
@@ -202,6 +274,38 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const requestPasswordReset = async ({ email }) => {
+    setError('');
+    try {
+      const result = await resetPassword({ username: email });
+      return {
+        success: true,
+        nextStep: result?.nextStep?.resetPasswordStep || 'DONE',
+        delivery: result?.nextStep?.codeDeliveryDetails,
+      };
+    } catch (err) {
+      const message = parseAuthError(err);
+      setError(message);
+      return { success: false, message };
+    }
+  };
+
+  const confirmPasswordReset = async ({ email, code, newPassword }) => {
+    setError('');
+    try {
+      await confirmResetPassword({
+        username: email,
+        confirmationCode: code,
+        newPassword,
+      });
+      return { success: true };
+    } catch (err) {
+      const message = parseAuthError(err);
+      setError(message);
+      return { success: false, message };
+    }
+  };
+
   const logout = async () => {
     setError('');
     try {
@@ -210,6 +314,7 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(false);
       setSignInStep('');
       setIsPremium(false);
+      setHasDummyPremium(false);
       return { success: true };
     } catch (err) {
       const message = parseAuthError(err);
@@ -219,14 +324,18 @@ export const AuthProvider = ({ children }) => {
   };
 
   const fetchPremiumStatus = async () => {
+    const localPremium = hasDummyPremiumForUser(user);
+    setHasDummyPremium(localPremium);
+
     if (!isAuthenticated || !user?.accessToken) {
       setIsPremium(false);
       return;
     }
 
+    let premiumFromEntitlement = false;
+
     try {
-      const entitlementEndpoint = import.meta.env.VITE_ENTITLEMENT_ENDPOINT || '/v1/entitlements/me';
-      const response = await fetch(entitlementEndpoint, {
+      const response = await fetch(ENTITLEMENT_ENDPOINT, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${user.accessToken}`,
@@ -234,33 +343,89 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (!response.ok) {
-        setIsPremium(false);
+        setIsPremium(localPremium);
         return;
       }
 
       const payload = await response.json();
-      const premiumFlag = payload?.premium;
-
-      if (premiumFlag === true) {
-        setIsPremium(true);
-        return;
-      }
-
-      const plan = payload?.plan || payload?.subscription?.plan;
-      if (typeof plan === 'string' && plan.toLowerCase() === 'premium') {
-        setIsPremium(true);
-        return;
-      }
-
-      if (premiumFlag === false) {
-        setIsPremium(false);
-        return;
-      }
-
-      setIsPremium(false);
+      premiumFromEntitlement = isPremiumEntitlementPayload(payload);
+      setIsPremium(localPremium || premiumFromEntitlement);
     } catch {
-      setIsPremium(false);
+      setIsPremium(localPremium || premiumFromEntitlement);
     }
+  };
+
+  const activateDummyPremium = async () => {
+    if (!isAuthenticated || !user) {
+      return { success: false, message: 'Sign in before upgrading to premium.' };
+    }
+
+    try {
+      const response = await fetch(SUBSCRIPTION_ACTIVATION_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ source: 'checkout-demo' }),
+      });
+
+      if (!response.ok) {
+        let message = `Activation API returned ${response.status}.`;
+        try {
+          const payload = await response.json();
+          if (typeof payload?.message === 'string' && payload.message.trim()) {
+            message = payload.message;
+          }
+        } catch {
+          // Ignore JSON parse errors and keep default message.
+        }
+
+        if (!isLocalPremiumFallbackEnabled()) {
+          return {
+            success: false,
+            message: `Could not update subscription table: ${message} Verify the hardcoded activation endpoint and redeploy backend routes if needed.`,
+          };
+        }
+      } else {
+        let payload = null;
+        try {
+          payload = await response.json();
+        } catch {
+          payload = null;
+        }
+
+        const premiumActive = payload ? isPremiumEntitlementPayload(payload) : true;
+        setHasDummyPremium(false);
+        setIsPremium(premiumActive);
+
+        return {
+          success: true,
+          source: 'backend',
+          message: 'Premium activated and saved to the subscription table.',
+        };
+      }
+    } catch (err) {
+      if (!isLocalPremiumFallbackEnabled()) {
+        return {
+          success: false,
+          message: `Could not update subscription table: ${parseAuthError(err)}. Verify the hardcoded activation endpoint and redeploy backend routes if needed.`,
+        };
+      }
+    }
+
+    const activated = activateDummyPremiumForUser(user);
+    if (!activated) {
+      return { success: false, message: 'Could not activate premium for this account.' };
+    }
+
+    setHasDummyPremium(true);
+    setIsPremium(true);
+    return {
+      success: true,
+      source: 'local',
+      message: 'Premium activated locally only. Subscription table was not updated.',
+    };
   };
 
   const value = {
@@ -271,10 +436,14 @@ export const AuthProvider = ({ children }) => {
     error,
     signInStep,
     isPremium,
+    hasDummyPremium,
     login,
     register,
     confirmRegistration,
+    requestPasswordReset,
+    confirmPasswordReset,
     completeNewPassword,
+    activateDummyPremium,
     logout,
     refreshSession,
     fetchPremiumStatus,

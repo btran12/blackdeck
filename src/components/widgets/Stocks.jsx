@@ -20,7 +20,8 @@ export const Stocks = ({ apiKey, tickers = [], pollIntervalMinutes = 5, showFade
   const backendService = useBackendService(
     '/v1/services/stocks',
     { tickers: validTickers.join(',') },
-    pollIntervalMinutes
+    pollIntervalMinutes,
+    usePremium
   );
 
   useEffect(() => {

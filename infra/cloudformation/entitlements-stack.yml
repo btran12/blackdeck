@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
   Blackdeck entitlement backend. Creates a DynamoDB subscriptions table, a Lambda
   entitlement handler, and a Cognito-protected API Gateway HTTP API endpoint at
-  GET /v1/entitlements/me.
+  GET /v1/entitlements/me and POST /v1/subscriptions/activate-demo.
 
 Parameters:
   ProjectName:
@@ -94,6 +94,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - dynamodb:GetItem
+                  - dynamodb:PutItem
                 Resource: !GetAtt SubscriptionsTable.Arn
 
   EntitlementsFunction:
@@ -172,6 +173,79 @@ Resources:
 
               return _response(200, payload)
 
+  DemoSubscriptionActivationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${ProjectName}-${EnvironmentName}-subscription-activate-demo
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 10
+      MemorySize: 256
+      Role: !GetAtt EntitlementsFunctionRole.Arn
+      Environment:
+        Variables:
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTable
+      Code:
+        ZipFile: |
+          import datetime
+          import json
+          import os
+          import boto3
+
+          dynamodb = boto3.resource("dynamodb")
+          table = dynamodb.Table(os.environ["SUBSCRIPTIONS_TABLE"])
+
+
+          def _response(status_code, body):
+              return {
+                  "statusCode": status_code,
+                  "headers": {
+                      "Content-Type": "application/json"
+                  },
+                  "body": json.dumps(body)
+              }
+
+
+          def handler(event, context):
+              claims = (
+                  event.get("requestContext", {})
+                  .get("authorizer", {})
+                  .get("jwt", {})
+                  .get("claims", {})
+              )
+
+              user_id = claims.get("sub")
+              if not user_id:
+                  return _response(401, {"message": "Unauthorized"})
+
+              now = datetime.datetime.now(datetime.timezone.utc)
+              current_period_end = (now + datetime.timedelta(days=30)).isoformat().replace("+00:00", "Z")
+              updated_at = now.isoformat().replace("+00:00", "Z")
+
+              table.put_item(
+                  Item={
+                      "userId": user_id,
+                      "plan": "premium",
+                      "status": "active",
+                      "currentPeriodEnd": current_period_end,
+                      "updatedAt": updated_at,
+                      "source": "demo-checkout",
+                  }
+              )
+
+              return _response(
+                  200,
+                  {
+                      "premium": True,
+                      "plan": "premium",
+                      "status": "active",
+                      "userId": user_id,
+                      "currentPeriodEnd": current_period_end,
+                      "updatedAt": updated_at,
+                      "source": "demo-checkout",
+                  },
+              )
+
   EntitlementsApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
@@ -183,6 +257,7 @@ Resources:
           - !Ref AllowedOrigins
         AllowMethods:
           - GET
+          - POST
           - OPTIONS
         AllowHeaders:
           - authorization
@@ -222,6 +297,24 @@ Resources:
       AuthorizerId: !Ref EntitlementsJwtAuthorizer
       Target: !Sub integrations/${EntitlementsIntegration}
 
+  DemoSubscriptionActivationIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref EntitlementsApi
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      IntegrationUri: !GetAtt DemoSubscriptionActivationFunction.Arn
+      PayloadFormatVersion: '2.0'
+
+  DemoSubscriptionActivationRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref EntitlementsApi
+      RouteKey: POST /v1/subscriptions/activate-demo
+      AuthorizationType: JWT
+      AuthorizerId: !Ref EntitlementsJwtAuthorizer
+      Target: !Sub integrations/${DemoSubscriptionActivationIntegration}
+
   EntitlementsStage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
@@ -236,6 +329,14 @@ Resources:
       FunctionName: !Ref EntitlementsFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${EntitlementsApi}/*/GET/v1/entitlements/me
+
+  DemoSubscriptionActivationFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref DemoSubscriptionActivationFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${EntitlementsApi}/*/POST/v1/subscriptions/activate-demo
 
   ServicesFunctionRole:
     Type: AWS::IAM::Role
@@ -782,6 +883,10 @@ Outputs:
   EntitlementsEndpoint:
     Description: Frontend-ready entitlement endpoint for VITE_ENTITLEMENT_ENDPOINT.
     Value: !Sub https://${EntitlementsApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/v1/entitlements/me
+
+  DemoSubscriptionActivationEndpoint:
+    Description: Frontend-ready demo activation endpoint for VITE_SUBSCRIPTION_ACTIVATION_ENDPOINT.
+    Value: !Sub https://${EntitlementsApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/v1/subscriptions/activate-demo
 
   WeatherEndpoint:
     Description: Weather service endpoint (premium only). Query params - location (required), tempUnit (C or F, default F).

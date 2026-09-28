@@ -1,10 +1,19 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Box, Typography } from '@mui/material';
 import { Widget } from '../Widget';
+import { Neko } from 'neko-ts';
 
-const ANIMATION_TYPES = ['matrix', 'starfield', 'bubbles', 'fireworks', 'rain', 'snow', 'fish', 'birds', 'fireflies', 'cats', 'dna', 'sleepycat'];
+const ANIMATION_TYPES = ['matrix', 'starfield', 'bubbles', 'fireworks', 'rain', 'snow', 'fish', 'birds', 'fireflies', 'cats', 'dna', 'nekocat'];
 const DEFAULT_ANIMATION = 'starfield';
 const DEFAULT_ROTATION_MINUTES = 0; // 0 = no rotation
+
+function normalizeAnimationType(value) {
+  return value === 'sleepycat' ? 'nekocat' : value;
+}
+
+function getAnimationDisplayName(value) {
+  return value === 'nekocat' ? 'neko cat' : value;
+}
 
 export const Animations = ({
   animationType = DEFAULT_ANIMATION,
@@ -13,17 +22,17 @@ export const Animations = ({
 }) => {
   const canvasRef = useRef(null);
   const animationFrameRef = useRef(null);
-  const [activeAnimation, setActiveAnimation] = useState(animationType);
+  const [activeAnimation, setActiveAnimation] = useState(normalizeAnimationType(animationType));
 
   // Rotation between animation types
   useEffect(() => {
     if (rotationIntervalMinutes <= 0) {
-      setActiveAnimation(animationType);
+      setActiveAnimation(normalizeAnimationType(animationType));
       return;
     }
 
     const intervalMs = Math.max(1, rotationIntervalMinutes) * 60 * 1000;
-    let index = ANIMATION_TYPES.indexOf(animationType);
+    let index = ANIMATION_TYPES.indexOf(normalizeAnimationType(animationType));
     if (index === -1) index = 0;
 
     const interval = setInterval(() => {
@@ -87,6 +96,7 @@ export const Animations = ({
         cleanup = runDNA(ctx, canvas, () => running);
         break;
       case 'sleepycat':
+      case 'nekocat':
         cleanup = runSleepyCat(ctx, canvas, () => running);
         break;
       default:
@@ -125,7 +135,7 @@ export const Animations = ({
             pointerEvents: 'none',
           }}
         >
-          {activeAnimation}
+          {getAnimationDisplayName(activeAnimation)}
         </Typography>
       </Box>
     </Widget>
@@ -1119,398 +1129,115 @@ function runDNA(ctx, canvas, isRunning) {
   draw();
 }
 
-// ─── Sleeping Cat (canvas-drawn chibi style) ────────────────────────
+// ─── Sleeping Cat (neko-ts library, randomized within widget) ───────
 function runSleepyCat(ctx, canvas, isRunning) {
-  let time = 0;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Eye state machine
-  let eyeState = 'closed'; // closed, opening, open, closing
-  let eyeOpenness = 0; // 0 = closed, 1 = fully open
-  let eyeTimer = 300 + Math.floor(Math.random() * 500); // frames until next eye event
-  let blinkTimer = 0;
+  const parent = canvas.parentElement;
+  if (!parent) return () => {};
 
-  // Head movement
-  let headTargetAngle = 0;
-  let headAngle = 0;
-  let headTargetY = 0;
-  let headOffsetY = 0;
-  let headMoveTimer = 200 + Math.floor(Math.random() * 300);
+  const priorPosition = parent.style.position;
+  const priorOverflow = parent.style.overflow;
 
-  // Tail state
-  let tailCurl = 0;
-  let tailTargetCurl = 0;
-  let tailFlickTimer = 150 + Math.floor(Math.random() * 200);
-  let tailFlicking = false;
+  if (!priorPosition || priorPosition === 'static') {
+    parent.style.position = 'relative';
+  }
+  parent.style.overflow = 'hidden';
 
-  // Ear twitch
-  let earTwitchL = 0;
-  let earTwitchR = 0;
-  let earTimer = 100 + Math.floor(Math.random() * 300);
+  const centerX = Math.max(48, Math.round(parent.clientWidth / 2));
+  const centerY = Math.max(48, Math.round(parent.clientHeight / 2));
+  const nekoId = Math.floor(Date.now() % 1_000_000);
 
-  function draw() {
-    if (!isRunning()) return;
-    time += 0.016;
+  const neko = new Neko({
+    parent,
+    origin: { x: centerX, y: centerY },
+    defaultState: 'awake',
+    speed: 10,
+    animationSpeed: 90,
+    nekoId,
+  });
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const nekoEl = document.getElementById(`neko-${nekoId}`);
+  const half = Math.max(8, Math.floor(neko.size / 2));
+  let randomMoveTimer;
+  let clampTimer;
+  const spawnSafePadding = half + 8;
 
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
-    const scale = Math.min(canvas.width / 400, canvas.height / 300) * 0.85;
-
-    ctx.save();
-    ctx.translate(cx, cy + 20 * scale);
-    ctx.scale(scale, scale);
-
-    // Breathing
-    const breathe = Math.sin(time * 1.2) * 0.015;
-    const breatheY = Math.sin(time * 1.2) * 2;
-
-    // ── Update eye state machine ──
-    eyeTimer--;
-    if (eyeState === 'closed' && eyeTimer <= 0) {
-      eyeState = 'opening';
-      eyeTimer = 0;
-    } else if (eyeState === 'opening') {
-      eyeOpenness += 0.04;
-      if (eyeOpenness >= 1) {
-        eyeOpenness = 1;
-        eyeState = 'open';
-        eyeTimer = 60 + Math.floor(Math.random() * 120); // stay open a bit
-      }
-    } else if (eyeState === 'open') {
-      eyeTimer--;
-      // Blink while open
-      blinkTimer--;
-      if (blinkTimer <= 0) {
-        blinkTimer = 25 + Math.floor(Math.random() * 40);
-      }
-      if (eyeTimer <= 0) {
-        eyeState = 'closing';
-      }
-    } else if (eyeState === 'closing') {
-      eyeOpenness -= 0.03;
-      if (eyeOpenness <= 0) {
-        eyeOpenness = 0;
-        eyeState = 'closed';
-        eyeTimer = 400 + Math.floor(Math.random() * 600);
-      }
-    }
-
-    // Blink dip (quick close-open while eyes are open)
-    let blinkDip = 0;
-    if (eyeState === 'open' && blinkTimer > 15 && blinkTimer < 25) {
-      blinkDip = 1 - Math.abs(blinkTimer - 20) / 5;
-    }
-    const effectiveOpenness = Math.max(0, eyeOpenness - blinkDip * 0.9);
-
-    // ── Update head movement ──
-    headMoveTimer--;
-    if (headMoveTimer <= 0) {
-      headTargetAngle = (Math.random() - 0.5) * 0.12;
-      headTargetY = (Math.random() - 0.5) * 4;
-      headMoveTimer = 150 + Math.floor(Math.random() * 400);
-    }
-    headAngle += (headTargetAngle - headAngle) * 0.01;
-    headOffsetY += (headTargetY - headOffsetY) * 0.01;
-
-    // ── Update tail ──
-    tailFlickTimer--;
-    if (tailFlickTimer <= 0) {
-      if (!tailFlicking) {
-        tailFlicking = true;
-        tailTargetCurl = (Math.random() - 0.3) * 25;
-        tailFlickTimer = 15 + Math.floor(Math.random() * 30);
-      } else {
-        tailFlicking = false;
-        tailTargetCurl = Math.sin(time * 0.3) * 5;
-        tailFlickTimer = 80 + Math.floor(Math.random() * 250);
-      }
-    }
-    tailCurl += (tailTargetCurl - tailCurl) * (tailFlicking ? 0.15 : 0.02);
-    const tailBase = Math.sin(time * 0.6) * 5;
-    const tailWag = tailBase + tailCurl;
-
-    // ── Update ear twitch ──
-    earTimer--;
-    if (earTimer <= 0) {
-      const side = Math.random();
-      if (side < 0.4) earTwitchL = 5 + Math.random() * 5;
-      else if (side < 0.8) earTwitchR = 5 + Math.random() * 5;
-      else { earTwitchL = 4; earTwitchR = 4; }
-      earTimer = 80 + Math.floor(Math.random() * 350);
-    }
-    earTwitchL *= 0.9;
-    earTwitchR *= 0.9;
-
-    // ── Shadow ──
-    ctx.beginPath();
-    ctx.ellipse(0, 62, 120, 16, 0, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-    ctx.fill();
-
-    // ── Tail ──
-    ctx.save();
-    ctx.translate(85, 30 + breatheY * 0.3);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.bezierCurveTo(30, -15 + tailWag, 55, -35 + tailWag, 50, -55 + tailWag * 0.5);
-    ctx.bezierCurveTo(48, -65 + tailWag * 0.5, 35, -60 + tailWag * 0.3, 40, -50 + tailWag * 0.5);
-    ctx.bezierCurveTo(45, -35 + tailWag, 25, -10 + tailWag, 5, 8);
-    ctx.fillStyle = '#b0b0b0';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(47, -57 + tailWag * 0.5, 8, 0, Math.PI * 2);
-    ctx.fillStyle = '#808080';
-    ctx.fill();
-    ctx.restore();
-
-    // ── Back leg ──
-    ctx.save();
-    ctx.translate(0, breatheY * 0.5);
-    ctx.beginPath();
-    ctx.ellipse(55, 52, 20, 10, 0.1, 0, Math.PI * 2);
-    ctx.fillStyle = '#e8e8e8';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(72, 55, 10, 7, 0.2, 0, Math.PI * 2);
-    ctx.fillStyle = '#f5c6cb';
-    ctx.fill();
-    ctx.restore();
-
-    // ── Body ──
-    ctx.save();
-    ctx.scale(1 + breathe, 1 - breathe * 0.7);
-    ctx.translate(0, breatheY);
-    ctx.beginPath();
-    ctx.ellipse(15, 20, 95, 50, -0.05, 0, Math.PI * 2);
-    ctx.fillStyle = '#f0f0f0';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(40, 0, 45, 28, -0.1, -0.3, Math.PI * 0.8);
-    ctx.fillStyle = '#b0b0b0';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(60, 15, 20, 18, 0.2, 0, Math.PI * 2);
-    ctx.fillStyle = '#a0a0a0';
-    ctx.fill();
-    ctx.restore();
-
-    // ── Head (with rotation and vertical movement) ──
-    ctx.save();
-    ctx.translate(-60, -10 + breatheY * 0.8 + headOffsetY);
-    ctx.rotate(headAngle);
-
-    // Head shape
-    ctx.beginPath();
-    ctx.arc(0, 0, 48, 0, Math.PI * 2);
-    ctx.fillStyle = '#f5f5f5';
-    ctx.fill();
-    // Gray head patch
-    ctx.beginPath();
-    ctx.arc(5, -20, 30, Math.PI * 1.15, Math.PI * 1.95);
-    ctx.bezierCurveTo(-25, -40, 15, -50, 30, -30);
-    ctx.fillStyle = '#b0b0b0';
-    ctx.fill();
-
-    // ── Ears (with twitch) ──
-    // Left ear
-    ctx.beginPath();
-    ctx.moveTo(-28, -35);
-    ctx.lineTo(-40 - earTwitchL * 0.5, -68 - earTwitchL);
-    ctx.lineTo(-12, -45);
-    ctx.closePath();
-    ctx.fillStyle = '#b0b0b0';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(-27, -38);
-    ctx.lineTo(-36 - earTwitchL * 0.3, -62 - earTwitchL * 0.8);
-    ctx.lineTo(-16, -44);
-    ctx.closePath();
-    ctx.fillStyle = '#f5a0b0';
-    ctx.fill();
-
-    // Right ear
-    ctx.beginPath();
-    ctx.moveTo(28, -35);
-    ctx.lineTo(42 + earTwitchR * 0.5, -68 - earTwitchR);
-    ctx.lineTo(12, -45);
-    ctx.closePath();
-    ctx.fillStyle = '#909090';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(27, -38);
-    ctx.lineTo(38 + earTwitchR * 0.3, -62 - earTwitchR * 0.8);
-    ctx.lineTo(16, -44);
-    ctx.closePath();
-    ctx.fillStyle = '#f5a0b0';
-    ctx.fill();
-
-    // ── Eyes ──
-    if (effectiveOpenness < 0.05) {
-      // Fully closed — curved lines
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = '#555';
-      ctx.beginPath();
-      ctx.arc(-16, 2, 8, Math.PI * 0.15, Math.PI * 0.85);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(16, 2, 8, Math.PI * 0.15, Math.PI * 0.85);
-      ctx.stroke();
-    } else {
-      // Open / partially open eyes
-      const eyeH = effectiveOpenness * 10; // max height 10
-      const pupilSize = 3 + effectiveOpenness * 2;
-
-      // Left eye white
-      ctx.beginPath();
-      ctx.ellipse(-16, 2, 9, eyeH * 0.5, 0, 0, Math.PI * 2);
-      ctx.fillStyle = '#fff';
-      ctx.fill();
-      ctx.strokeStyle = '#555';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
-      // Left pupil
-      ctx.beginPath();
-      ctx.ellipse(-16, 2, pupilSize, pupilSize * 1.2, 0, 0, Math.PI * 2);
-      ctx.fillStyle = '#3a6';
-      ctx.fill();
-      // Inner pupil
-      ctx.beginPath();
-      ctx.ellipse(-16, 2, pupilSize * 0.45, pupilSize * 0.6, 0, 0, Math.PI * 2);
-      ctx.fillStyle = '#111';
-      ctx.fill();
-      // Eye shine
-      ctx.beginPath();
-      ctx.arc(-14, 0, 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#fff';
-      ctx.fill();
-
-      // Right eye white
-      ctx.beginPath();
-      ctx.ellipse(16, 2, 9, eyeH * 0.5, 0, 0, Math.PI * 2);
-      ctx.fillStyle = '#fff';
-      ctx.fill();
-      ctx.strokeStyle = '#555';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
-      // Right pupil
-      ctx.beginPath();
-      ctx.ellipse(16, 2, pupilSize, pupilSize * 1.2, 0, 0, Math.PI * 2);
-      ctx.fillStyle = '#3a6';
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(16, 2, pupilSize * 0.45, pupilSize * 0.6, 0, 0, Math.PI * 2);
-      ctx.fillStyle = '#111';
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(18, 0, 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#fff';
-      ctx.fill();
-
-      // Sleepy eyelids (drooping from top)
-      const lidDroop = (1 - effectiveOpenness) * 12;
-      ctx.fillStyle = '#f5f5f5';
-      ctx.beginPath();
-      ctx.ellipse(-16, 2 - eyeH * 0.5 + lidDroop * 0.3, 10, lidDroop, 0, 0, Math.PI);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(16, 2 - eyeH * 0.5 + lidDroop * 0.3, 10, lidDroop, 0, 0, Math.PI);
-      ctx.fill();
-    }
-
-    // Blush
-    ctx.beginPath();
-    ctx.ellipse(-28, 12, 12, 8, -0.1, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255, 150, 170, 0.35)';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(28, 12, 12, 8, 0.1, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255, 150, 170, 0.35)';
-    ctx.fill();
-
-    // Nose
-    ctx.beginPath();
-    ctx.moveTo(0, 10);
-    ctx.lineTo(-4, 7);
-    ctx.lineTo(4, 7);
-    ctx.closePath();
-    ctx.fillStyle = '#f5a0b0';
-    ctx.fill();
-
-    // Mouth
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = '#888';
-    ctx.beginPath();
-    ctx.moveTo(-6, 14);
-    ctx.quadraticCurveTo(-3, 18, 0, 14);
-    ctx.quadraticCurveTo(3, 18, 6, 14);
-    ctx.stroke();
-
-    // Whiskers
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = 'rgba(150, 150, 150, 0.5)';
-    ctx.beginPath(); ctx.moveTo(-25, 8); ctx.lineTo(-50, 2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-25, 12); ctx.lineTo(-52, 12); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-25, 16); ctx.lineTo(-48, 22); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(25, 8); ctx.lineTo(50, 2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(25, 12); ctx.lineTo(52, 12); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(25, 16); ctx.lineTo(48, 22); ctx.stroke();
-
-    ctx.restore(); // head
-
-    // ── Front paws ──
-    ctx.save();
-    ctx.translate(-60, breatheY * 0.8);
-    ctx.beginPath();
-    ctx.ellipse(-20, 40, 14, 9, -0.3, 0, Math.PI * 2);
-    ctx.fillStyle = '#f0f0f0';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(-22, 43, 5, 4, -0.3, 0, Math.PI * 2);
-    ctx.fillStyle = '#f5c0cc';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(22, 40, 14, 9, 0.3, 0, Math.PI * 2);
-    ctx.fillStyle = '#f0f0f0';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(24, 43, 5, 4, 0.3, 0, Math.PI * 2);
-    ctx.fillStyle = '#f5c0cc';
-    ctx.fill();
-    ctx.restore();
-
-    // ── Sleep bubble ──
-    const droolSize = 3 + Math.sin(time * 0.8) * 2;
-    const showBubble = eyeState === 'closed';
-    if (showBubble) {
-      ctx.beginPath();
-      ctx.arc(-72, 16 + breatheY * 0.8 + headOffsetY, Math.max(1, droolSize), 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(200, 220, 250, 0.5)';
-      ctx.fill();
-    }
-
-    // ── Zzz (positioned near head, only when eyes closed) ──
-    if (eyeState === 'closed') {
-      for (let i = 0; i < 3; i++) {
-        const zPhase = (time * 0.5 + i * 1.2) % 3.5;
-        if (zPhase > 3) continue;
-        const t = zPhase / 3;
-        const zx = -30 + i * 8 + Math.sin(time * 0.7 + i) * 6;
-        const zy = -45 - t * 50 + breatheY + headOffsetY;
-        const zAlpha = (1 - t) * 0.55;
-        const zSize = 9 + t * 7 + i * 2;
-        ctx.font = `bold ${zSize}px monospace`;
-        ctx.fillStyle = `rgba(180, 200, 255, ${zAlpha})`;
-        ctx.fillText('Z', zx, zy);
-      }
-    }
-
-    ctx.restore();
-    requestAnimationFrame(draw);
+  if (nekoEl) {
+    // Force local positioning so widget bounds are reliable.
+    nekoEl.style.position = 'absolute';
+    nekoEl.style.zIndex = '6';
   }
 
-  draw();
+  // Ignore native pointer tracking; we drive movement using random in-widget targets.
+  if (neko.mouseMoveController?.abort) neko.mouseMoveController.abort();
+  if (neko.touchController?.abort) neko.touchController.abort();
+  neko.isAwake = true;
+
+  const getLocalBounds = () => {
+    const width = parent.clientWidth;
+    const height = parent.clientHeight;
+    return {
+      minX: spawnSafePadding,
+      maxX: Math.max(spawnSafePadding, width - spawnSafePadding),
+      minY: spawnSafePadding,
+      maxY: Math.max(spawnSafePadding, height - spawnSafePadding),
+      centerX: Math.max(spawnSafePadding, width / 2),
+      centerY: Math.max(spawnSafePadding, height / 2),
+    };
+  };
+
+  const applyNekoPosition = (x, y, syncMouse = false) => {
+    neko.nekoPosX = x;
+    neko.nekoPosY = y;
+    if (syncMouse) {
+      neko.mousePosX = x;
+      neko.mousePosY = y;
+    }
+    if (nekoEl) {
+      nekoEl.style.left = `${x - half}px`;
+      nekoEl.style.top = `${y - half}px`;
+    }
+  };
+
+  const clampNekoToWidget = () => {
+    if (!isRunning()) return;
+    const bounds = getLocalBounds();
+    const current = neko.position;
+    const clampedX = Math.max(bounds.minX, Math.min(bounds.maxX, current.x));
+    const clampedY = Math.max(bounds.minY, Math.min(bounds.maxY, current.y));
+    if (Math.abs(clampedX - current.x) > 0.1 || Math.abs(clampedY - current.y) > 0.1) {
+      applyNekoPosition(clampedX, clampedY, true);
+    }
+  };
+
+  const moveNekoToRandomPoint = () => {
+    if (!isRunning()) return;
+
+    const bounds = getLocalBounds();
+    const localX = bounds.minX + Math.random() * Math.max(0, bounds.maxX - bounds.minX);
+    const localY = bounds.minY + Math.random() * Math.max(0, bounds.maxY - bounds.minY);
+    neko.mousePosX = localX;
+    neko.mousePosY = localY;
+
+    const nextDelay = 900 + Math.random() * 2000;
+    randomMoveTimer = window.setTimeout(moveNekoToRandomPoint, nextDelay);
+  };
+
+  const initialBounds = getLocalBounds();
+  applyNekoPosition(initialBounds.centerX, initialBounds.centerY, true);
+  moveNekoToRandomPoint();
+  clampTimer = window.setInterval(clampNekoToWidget, 33);
+
+  return () => {
+    if (randomMoveTimer) {
+      window.clearTimeout(randomMoveTimer);
+    }
+    if (clampTimer) {
+      window.clearInterval(clampTimer);
+    }
+    neko.destroy();
+    parent.style.position = priorPosition;
+    parent.style.overflow = priorOverflow;
+  };
 }

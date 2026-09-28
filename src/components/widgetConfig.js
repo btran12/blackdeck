@@ -279,7 +279,9 @@ export const createWidgetSettingsForType = (widgetType, defaults = {}) => {
     case 'animations':
       return {
         widgetType,
-        animationType: defaults.animationType || 'starfield',
+        animationType: defaults.animationType === 'sleepycat'
+          ? 'nekocat'
+          : (defaults.animationType || 'starfield'),
         animationRotationMinutes: defaults.animationRotationMinutes || 0,
         showFade: defaults.showFade ?? DEFAULT_WIDGET_FADE.animations,
       };

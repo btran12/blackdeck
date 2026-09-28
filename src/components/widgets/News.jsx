@@ -18,7 +18,8 @@ export const News = ({ apiKey, currentsApiKey, pollIntervalMinutes = 180, showFa
   const backendService = useBackendService(
     '/v1/services/news',
     {},
-    pollIntervalMinutes
+    pollIntervalMinutes,
+    usePremium
   );
 
   // Fetch from Currents API

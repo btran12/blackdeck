@@ -1,5 +1,6 @@
 import { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
+import { getServiceEndpoint } from '../config/endpoints';
 
 /**
  * Custom hook for calling backend premium services
@@ -8,18 +9,16 @@ import { AuthContext } from '../context/AuthContext';
  * @param {string} endpoint - Service endpoint path (e.g., '/v1/services/weather')
  * @param {Object} queryParams - Query parameters to pass to the endpoint
  * @param {number} pollIntervalMinutes - How often to refetch (default 5 minutes)
+ * @param {boolean} enabled - Whether backend fetching is enabled
  * @returns {Object} { data, loading, error, refetch }
  */
-export const useBackendService = (endpoint, queryParams = {}, pollIntervalMinutes = 5) => {
+export const useBackendService = (endpoint, queryParams = {}, pollIntervalMinutes = 5, enabled = true) => {
   const auth = useContext(AuthContext);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const baseEndpoint = import.meta.env.VITE_ENTITLEMENT_ENDPOINT?.replace(
-    '/v1/entitlements/me',
-    endpoint
-  );
+  const baseEndpoint = getServiceEndpoint(endpoint);
 
   const normalizedPollIntervalMs = Math.max(1, Math.min(1440, Number(pollIntervalMinutes))) * 60 * 1000;
 
@@ -36,6 +35,12 @@ export const useBackendService = (endpoint, queryParams = {}, pollIntervalMinute
   };
 
   const fetchData = async () => {
+    if (!enabled) {
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     if (!auth.isAuthenticated) {
       setError('Log in to access this service');
       setLoading(false);
@@ -98,10 +103,16 @@ export const useBackendService = (endpoint, queryParams = {}, pollIntervalMinute
   };
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     fetchData();
     const interval = setInterval(fetchData, normalizedPollIntervalMs);
     return () => clearInterval(interval);
-  }, [endpoint, JSON.stringify(queryParams), pollIntervalMinutes, auth.isAuthenticated, auth.user?.accessToken]);
+  }, [enabled, endpoint, JSON.stringify(queryParams), pollIntervalMinutes, auth.isAuthenticated, auth.user?.accessToken]);
 
   return {
     data,

@@ -15,7 +15,8 @@ export const Holidays = ({ apiKey = '', pollIntervalMinutes = 720, showFade = fa
   const backendService = useBackendService(
     '/v1/services/holidays',
     {},
-    pollIntervalMinutes
+    pollIntervalMinutes,
+    usePremium
   );
 
   useEffect(() => {

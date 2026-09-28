@@ -31,7 +31,8 @@ export const Crypto = ({ coins = ['bitcoin', 'ethereum'], pollIntervalMinutes = 
   const backendService = useBackendService(
     '/v1/services/crypto',
     { ids: validCoins.join(',') },
-    pollIntervalMinutes
+    pollIntervalMinutes,
+    usePremium
   );
 
   useEffect(() => {

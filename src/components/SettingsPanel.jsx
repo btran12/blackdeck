@@ -19,6 +19,7 @@ import {
 } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
 import { WidgetContext } from '../context/WidgetContext';
+import { ENTITLEMENT_ENDPOINT } from '../config/endpoints';
 import {
   createWidgetSettingsForType,
   getLayoutPreset,
@@ -45,10 +46,23 @@ const fieldStyles = {
       boxShadow: '0 0 0 3px rgba(33,150,243,0.12)',
     },
     '&.Mui-focused fieldset': { borderColor: '#4dabf5' },
+    '&.Mui-disabled': {
+      bgcolor: 'rgba(255,255,255,0.08)',
+    },
+    '&.Mui-disabled fieldset': { borderColor: 'rgba(255,255,255,0.2)' },
   },
-  '& .MuiInputBase-input::placeholder': { color: '#7e8794', opacity: 1 },
-  '& .MuiInputLabel-root': { color: '#9ea7b3' },
+  '& .MuiInputBase-input': { color: '#eef3f7' },
+  '& .MuiInputBase-input::placeholder': { color: '#9ea9ba', opacity: 1 },
+  '& .MuiInputBase-input.Mui-disabled': {
+    color: '#d8e0ea',
+    WebkitTextFillColor: '#d8e0ea',
+    opacity: 1,
+  },
+  '& .MuiInputLabel-root': { color: '#b7c1cf' },
   '& .MuiInputLabel-root.Mui-focused': { color: '#90caf9' },
+  '& .MuiInputLabel-root.Mui-disabled': { color: '#a9b4c4' },
+  '& .MuiFormHelperText-root': { color: '#95a1b3' },
+  '& .MuiFormHelperText-root.Mui-disabled': { color: '#8d98a8' },
 };
 
 const selectStyles = {
@@ -132,7 +146,7 @@ const buildSettingsDefaultsFromInstances = (layoutWidgets, widgetSettingsMap, pr
   return nextSettings;
 };
 
-const entitlementEndpoint = import.meta.env.VITE_ENTITLEMENT_ENDPOINT || '/v1/entitlements/me';
+const entitlementEndpoint = ENTITLEMENT_ENDPOINT;
 
 const getPremiumStatusFromEntitlement = (payload) => {
   const plan = payload?.plan || payload?.subscription?.plan;
@@ -166,26 +180,14 @@ const getPremiumChipConfig = (status) => {
     };
   }
 
-  if (status === 'free') {
+  if (status === 'free' || status === 'error') {
     return {
-      label: 'Free',
+      label: 'Standard',
       sx: {
         height: 22,
         bgcolor: 'transparent',
         color: '#b0b0b0',
         border: '1px solid #666666',
-      },
-    };
-  }
-
-  if (status === 'error') {
-    return {
-      label: 'Entitlement Error',
-      sx: {
-        height: 22,
-        bgcolor: 'transparent',
-        color: '#ff8a80',
-        border: '1px solid #ff8a80',
       },
     };
   }
@@ -215,10 +217,16 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
   const [authPassword, setAuthPassword] = useState('');
   const [authCode, setAuthCode] = useState('');
   const [authNewPassword, setAuthNewPassword] = useState('');
+  const [authResetCode, setAuthResetCode] = useState('');
+  const [authResetPassword, setAuthResetPassword] = useState('');
   const [authBusy, setAuthBusy] = useState(false);
   const [authMessage, setAuthMessage] = useState('');
   const [premiumStatus, setPremiumStatus] = useState('unknown');
   const [entitlementDetail, setEntitlementDetail] = useState('');
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [checkoutCardholder, setCheckoutCardholder] = useState('');
+  const [checkoutMessage, setCheckoutMessage] = useState('');
 
   const accountLabel = auth.user?.name || auth.user?.email || auth.user?.username || 'Signed in user';
 
@@ -230,6 +238,7 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
     setLocalLayoutPreset(layout.preset);
     setLocalWidgetSettings(widgetSettings);
     setAuthMessage('');
+    setEntitlementDetail('');
     auth.clearError();
   }, [isOpen, layout.preset, layout.widgets, settings, widgetSettings]);
 
@@ -237,6 +246,12 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
     if (!isOpen || !auth.isAuthenticated || !auth.user?.accessToken) {
       setPremiumStatus('unknown');
       setEntitlementDetail('');
+      return;
+    }
+
+    if (auth.hasDummyPremium) {
+      setPremiumStatus('premium');
+      setEntitlementDetail('Activated locally via dummy checkout (demo mode).');
       return;
     }
 
@@ -269,8 +284,8 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
         }
       } catch (err) {
         if (err?.name !== 'AbortError') {
-          setPremiumStatus('error');
-          setEntitlementDetail('Could not load subscription status from backend.');
+          setPremiumStatus('free');
+          setEntitlementDetail('');
         }
       }
     };
@@ -278,7 +293,7 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
     fetchEntitlement();
 
     return () => controller.abort();
-  }, [isOpen, auth.isAuthenticated, auth.user?.accessToken]);
+  }, [isOpen, auth.isAuthenticated, auth.user?.accessToken, auth.hasDummyPremium]);
 
   useEffect(() => {
     if (!auth.isAuthenticated) return;
@@ -287,6 +302,8 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
     setAuthPassword('');
     setAuthCode('');
     setAuthNewPassword('');
+    setAuthResetCode('');
+    setAuthResetPassword('');
     setAuthMessage('You are signed in.');
   }, [auth.isAuthenticated]);
 
@@ -395,6 +412,52 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
     }
   };
 
+  const handleRequestPasswordReset = async () => {
+    if (!authEmail) {
+      setAuthMessage('Enter your email to reset your password.');
+      return;
+    }
+
+    setAuthBusy(true);
+    const result = await auth.requestPasswordReset({ email: authEmail.trim() });
+    setAuthBusy(false);
+
+    if (result.success) {
+      const destination = result.delivery?.destination ? ` to ${result.delivery.destination}` : '';
+      setAuthMessage(`Reset code sent${destination}. Enter the code and your new password.`);
+      setAuthMode('resetPassword');
+      setAuthPassword('');
+      return;
+    }
+
+    setAuthMessage(result.message || 'Could not start password reset.');
+  };
+
+  const handleConfirmPasswordReset = async () => {
+    if (!authEmail || !authResetCode || !authResetPassword) {
+      setAuthMessage('Enter your email, reset code, and new password.');
+      return;
+    }
+
+    setAuthBusy(true);
+    const result = await auth.confirmPasswordReset({
+      email: authEmail.trim(),
+      code: authResetCode.trim(),
+      newPassword: authResetPassword,
+    });
+    setAuthBusy(false);
+
+    if (result.success) {
+      setAuthMessage('Password reset successfully. Log in with your new password.');
+      setAuthMode('login');
+      setAuthResetCode('');
+      setAuthResetPassword('');
+      return;
+    }
+
+    setAuthMessage(result.message || 'Could not reset password.');
+  };
+
   const handleLogout = async () => {
     setAuthBusy(true);
     const result = await auth.logout();
@@ -405,10 +468,65 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
       setAuthCode('');
       setAuthPassword('');
       setAuthNewPassword('');
+      setAuthResetCode('');
+      setAuthResetPassword('');
       setAuthName('');
       setAuthEmail('');
       setAuthMode('login');
     }
+  };
+
+  const openCheckout = () => {
+    if (!auth.isAuthenticated) {
+      setAuthMessage('Sign in before upgrading to premium.');
+      return;
+    }
+
+    if (premiumStatus === 'premium') {
+      setAuthMessage('This account already has premium access.');
+      return;
+    }
+
+    setCheckoutCardholder(auth.user?.name || '');
+    setCheckoutMessage('');
+    setIsCheckoutOpen(true);
+  };
+
+  const closeCheckout = () => {
+    if (checkoutBusy) return;
+    setIsCheckoutOpen(false);
+    setCheckoutMessage('');
+  };
+
+  const handleCompleteCheckout = async () => {
+    if (!checkoutCardholder.trim()) {
+      setCheckoutMessage('Enter the cardholder name to continue.');
+      return;
+    }
+
+    setCheckoutBusy(true);
+    const result = await auth.activateDummyPremium();
+    setCheckoutBusy(false);
+
+    if (!result.success) {
+      setCheckoutMessage(result.message || 'Could not complete checkout.');
+      return;
+    }
+
+    const usedLocalFallback = result.source === 'local';
+    setPremiumStatus('premium');
+    setEntitlementDetail(
+      usedLocalFallback
+        ? 'Activated locally via dummy checkout (demo mode).'
+        : 'Subscription activated and saved to backend table.'
+    );
+    setAuthMessage(result.message || 'Premium activated.');
+    setCheckoutMessage(
+      usedLocalFallback
+        ? 'Demo payment succeeded. Premium is active locally only.'
+        : 'Demo payment succeeded. Premium is active and saved to the subscription table.'
+    );
+    setIsCheckoutOpen(false);
   };
 
   const handleLayoutChange = (position, widgetType) => {
@@ -453,6 +571,26 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
   const layoutPresetOptions = Object.values(LAYOUT_PRESETS);
   const activeLayoutPreset = getLayoutPreset(localLayoutPreset);
   const premiumChip = getPremiumChipConfig(premiumStatus);
+  const accountStatus = auth.isLoading
+    ? {
+      label: 'Checking...',
+      color: '#90caf9',
+      borderColor: '#90caf9',
+      detail: 'Checking sign-in status...',
+    }
+    : auth.isAuthenticated
+      ? {
+        label: 'Logged In',
+        color: '#c8e6c9',
+        borderColor: '#66bb6a',
+        detail: accountLabel,
+      }
+      : {
+        label: 'Logged Out',
+        color: '#ffcc80',
+        borderColor: '#ffb74d',
+        detail: 'Sign in to sync account features.',
+      };
 
   return (
     <Dialog
@@ -517,6 +655,49 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
           <Box>
             <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 2 }}>Account</Typography>
             <Stack spacing={1.5}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 1.5,
+                  p: 1.25,
+                  borderRadius: 2,
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  bgcolor: 'rgba(255,255,255,0.03)',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box
+                    sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      bgcolor: accountStatus.borderColor,
+                      boxShadow: `0 0 0 3px ${accountStatus.borderColor}33`,
+                    }}
+                  />
+                  <Typography sx={{ color: '#d7dde7', fontSize: '0.88rem', fontWeight: 600 }}>
+                    Account Status
+                  </Typography>
+                </Box>
+                <Chip
+                  size="small"
+                  label={accountStatus.label}
+                  sx={{
+                    height: 22,
+                    bgcolor: 'transparent',
+                    color: accountStatus.color,
+                    border: `1px solid ${accountStatus.borderColor}`,
+                    fontWeight: 700,
+                  }}
+                />
+                <Typography sx={{ color: '#aeb7c2', fontSize: '0.8rem', width: '100%' }}>
+                  {accountStatus.detail}
+                </Typography>
+              </Box>
+
               {auth.isLoading && (
                 <Typography sx={{ color: '#999999', fontSize: '0.9rem' }}>Checking sign-in status...</Typography>
               )}
@@ -542,13 +723,28 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                     <Chip size="small" label={premiumChip.label} sx={premiumChip.sx} />
                   </Box>
 
-                  {entitlementDetail && (
+                  {premiumStatus === 'premium' && entitlementDetail && (
                     <Typography sx={{ color: '#999999', fontSize: '0.8rem' }}>
                       {entitlementDetail}
                     </Typography>
                   )}
 
                   <Box sx={{ display: 'flex', gap: 1 }}>
+                    {premiumStatus !== 'premium' && (
+                      <Button
+                        onClick={openCheckout}
+                        disabled={authBusy}
+                        variant="contained"
+                        sx={{
+                          bgcolor: '#f4b400',
+                          color: '#111111',
+                          fontWeight: 700,
+                          '&:hover': { bgcolor: '#d9a007' },
+                        }}
+                      >
+                        Upgrade to Premium
+                      </Button>
+                    )}
                     <Button
                       onClick={handleLogout}
                       disabled={authBusy}
@@ -562,6 +758,12 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                       Log Out
                     </Button>
                   </Box>
+
+                  {auth.hasDummyPremium && (
+                    <Typography sx={{ color: '#fdd663', fontSize: '0.8rem' }}>
+                      Demo premium is active for this account.
+                    </Typography>
+                  )}
                 </>
               )}
 
@@ -601,36 +803,20 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                       Sign Up
                     </Button>
                     <Button
-                      onClick={() => switchAuthMode('confirm')}
-                      variant={authMode === 'confirm' ? 'contained' : 'outlined'}
+                      onClick={() => switchAuthMode('forgotPassword')}
+                      variant={authMode === 'forgotPassword' || authMode === 'resetPassword' ? 'contained' : 'outlined'}
                       size="small"
                       sx={{
-                        bgcolor: authMode === 'confirm' ? '#2196f3' : 'transparent',
+                        bgcolor: authMode === 'forgotPassword' || authMode === 'resetPassword' ? '#2196f3' : 'transparent',
                         color: '#ffffff',
                         borderColor: '#444444',
                         '&:hover': {
                           borderColor: '#555555',
-                          bgcolor: authMode === 'confirm' ? '#1976d2' : 'rgba(255,255,255,0.05)',
+                          bgcolor: authMode === 'forgotPassword' || authMode === 'resetPassword' ? '#1976d2' : 'rgba(255,255,255,0.05)',
                         },
                       }}
                     >
-                      Verify Code
-                    </Button>
-                    <Button
-                      onClick={() => switchAuthMode('newPassword')}
-                      variant={authMode === 'newPassword' ? 'contained' : 'outlined'}
-                      size="small"
-                      sx={{
-                        bgcolor: authMode === 'newPassword' ? '#2196f3' : 'transparent',
-                        color: '#ffffff',
-                        borderColor: '#444444',
-                        '&:hover': {
-                          borderColor: '#555555',
-                          bgcolor: authMode === 'newPassword' ? '#1976d2' : 'rgba(255,255,255,0.05)',
-                        },
-                      }}
-                    >
-                      New Password
+                      Forgot Password
                     </Button>
                   </Box>
 
@@ -656,7 +842,7 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                     sx={fieldStyles}
                   />
 
-                  {authMode !== 'confirm' && authMode !== 'newPassword' && (
+                  {(authMode === 'login' || authMode === 'signup') && (
                     <TextField
                       fullWidth
                       label="Password"
@@ -692,6 +878,30 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                       variant="outlined"
                       sx={fieldStyles}
                     />
+                  )}
+
+                  {authMode === 'resetPassword' && (
+                    <>
+                      <TextField
+                        fullWidth
+                        label="Reset Code"
+                        value={authResetCode}
+                        onChange={(e) => setAuthResetCode(e.target.value)}
+                        placeholder="Enter password reset code"
+                        variant="outlined"
+                        sx={fieldStyles}
+                      />
+                      <TextField
+                        fullWidth
+                        label="New Password"
+                        type="password"
+                        value={authResetPassword}
+                        onChange={(e) => setAuthResetPassword(e.target.value)}
+                        placeholder="Enter your new password"
+                        variant="outlined"
+                        sx={fieldStyles}
+                      />
+                    </>
                   )}
 
                   {authMode === 'login' && (
@@ -753,11 +963,47 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                       {authBusy ? 'Updating Password...' : 'Set New Password'}
                     </Button>
                   )}
+
+                  {authMode === 'forgotPassword' && (
+                    <Button
+                      onClick={handleRequestPasswordReset}
+                      disabled={authBusy}
+                      variant="contained"
+                      sx={{
+                        bgcolor: '#2196f3',
+                        color: '#ffffff',
+                        '&:hover': { bgcolor: '#1976d2' },
+                      }}
+                    >
+                      {authBusy ? 'Sending Code...' : 'Send Reset Code'}
+                    </Button>
+                  )}
+
+                  {authMode === 'resetPassword' && (
+                    <Button
+                      onClick={handleConfirmPasswordReset}
+                      disabled={authBusy}
+                      variant="contained"
+                      sx={{
+                        bgcolor: '#2196f3',
+                        color: '#ffffff',
+                        '&:hover': { bgcolor: '#1976d2' },
+                      }}
+                    >
+                      {authBusy ? 'Resetting Password...' : 'Reset Password'}
+                    </Button>
+                  )}
                 </Stack>
               )}
 
+              {!auth.isLoading && !auth.isAuthenticated && (
+                <Divider sx={{ borderColor: 'rgba(255,255,255,0.16)', my: 1 }} />
+              )}
+
               <Typography sx={{ color: '#999999', fontSize: '0.8rem' }}>
-                Premium unlock and service access can be tied to this account after backend entitlement checks are enabled.
+                {auth.hasDummyPremium
+                  ? 'You are using local fallback premium only. Enable backend activation endpoint for real subscription-table updates.'
+                  : 'Use Upgrade to Premium for a demo checkout flow. No real payment is processed, but backend demo activation can update the subscription table.'}
               </Typography>
             </Stack>
           </Box>
@@ -907,6 +1153,103 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
           )}
         </Stack>
       </DialogContent>
+
+      <Dialog
+        open={isCheckoutOpen}
+        onClose={closeCheckout}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: '#161616',
+            border: '1px solid rgba(255,255,255,0.1)',
+            backgroundImage: 'linear-gradient(180deg, rgba(244,180,0,0.12), rgba(255,255,255,0.02))',
+          },
+        }}
+      >
+        <DialogTitle sx={{ color: '#ffffff', fontWeight: 700 }}>
+          Premium Checkout (Demo)
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Typography sx={{ color: '#d9dee7', fontSize: '0.92rem' }}>
+              This is a fake checkout page for testing upgrade UX. No Stripe call or real charge is made.
+            </Typography>
+            <Box
+              sx={{
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 2,
+                p: 1.5,
+                bgcolor: 'rgba(0,0,0,0.2)',
+              }}
+            >
+              <Typography sx={{ color: '#ffffff', fontWeight: 600 }}>Premium Plan</Typography>
+              <Typography sx={{ color: '#b8c2d1', fontSize: '0.85rem' }}>
+                Unlocks backend-managed premium services (weather, news, stocks, crypto, holidays, sports).
+              </Typography>
+              <Typography sx={{ color: '#fdd663', mt: 1, fontSize: '0.95rem', fontWeight: 700 }}>
+                $9.99/month (demo)
+              </Typography>
+            </Box>
+            <TextField
+              fullWidth
+              label="Billing Email"
+              value={auth.user?.email || ''}
+              disabled
+              variant="outlined"
+              sx={fieldStyles}
+            />
+            <TextField
+              fullWidth
+              label="Cardholder Name"
+              value={checkoutCardholder}
+              onChange={(e) => setCheckoutCardholder(e.target.value)}
+              placeholder="Name on card"
+              variant="outlined"
+              sx={fieldStyles}
+            />
+            <TextField
+              fullWidth
+              label="Card Number"
+              value="4242 4242 4242 4242"
+              disabled
+              variant="outlined"
+              sx={fieldStyles}
+              helperText="Demo card shown for UI only"
+            />
+            {checkoutMessage && (
+              <Typography sx={{ color: '#90caf9', fontSize: '0.85rem' }}>{checkoutMessage}</Typography>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, gap: 1 }}>
+          <Button
+            onClick={closeCheckout}
+            disabled={checkoutBusy}
+            variant="outlined"
+            sx={{
+              color: '#ffffff',
+              borderColor: '#4b5563',
+              '&:hover': { borderColor: '#6b7280', bgcolor: 'rgba(255,255,255,0.05)' },
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCompleteCheckout}
+            disabled={checkoutBusy}
+            variant="contained"
+            sx={{
+              bgcolor: '#f4b400',
+              color: '#111111',
+              fontWeight: 700,
+              '&:hover': { bgcolor: '#d9a007' },
+            }}
+          >
+            {checkoutBusy ? 'Processing...' : 'Complete Checkout'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <DialogActions sx={{ p: 2, gap: 1 }}>
         <Button
