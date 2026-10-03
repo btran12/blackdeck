@@ -323,6 +323,26 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange, isPrem
               <MenuItem value="24h">24-Hour Format</MenuItem>
             </Select>
           </FormControl>
+          <FormControl variant="outlined">
+            <InputLabel sx={{ color: '#cccccc' }}>Position</InputLabel>
+            <Select
+              value={settings.clockPosition || 'top-left'}
+              onChange={(event) => updateSetting('clockPosition', event.target.value)}
+              label="Position"
+              sx={selectStyles}
+              MenuProps={menuProps}
+            >
+              <MenuItem value="top-left">Top Left</MenuItem>
+              <MenuItem value="top-center">Top Center</MenuItem>
+              <MenuItem value="top-right">Top Right</MenuItem>
+              <MenuItem value="center-left">Center Left</MenuItem>
+              <MenuItem value="center">Center</MenuItem>
+              <MenuItem value="center-right">Center Right</MenuItem>
+              <MenuItem value="bottom-left">Bottom Left</MenuItem>
+              <MenuItem value="bottom-center">Bottom Center</MenuItem>
+              <MenuItem value="bottom-right">Bottom Right</MenuItem>
+            </Select>
+          </FormControl>
           {renderFadeToggle()}
         </Stack>
       );

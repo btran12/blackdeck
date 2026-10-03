@@ -196,6 +196,7 @@ export const createWidgetSettingsForType = (widgetType, defaults = {}) => {
       return {
         widgetType,
         clockFormat: defaults.clockFormat || '24h',
+        clockPosition: defaults.clockPosition || 'top-left',
         showFade: defaults.showFade ?? DEFAULT_WIDGET_FADE.clock,
       };
     case 'weather':

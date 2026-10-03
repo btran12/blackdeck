@@ -1,5 +1,6 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useRef } from 'react';
 import {
+  Autocomplete,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -31,6 +32,24 @@ import {
   normalizeLayoutPreset,
   WIDGET_OPTIONS,
 } from './widgetConfig';
+
+const FALLBACK_CITIES = [
+  'New York, New York',
+  'Los Angeles, California',
+  'Chicago, Illinois',
+  'Houston, Texas',
+  'Phoenix, Arizona',
+  'Philadelphia, Pennsylvania',
+  'San Francisco, California',
+  'Seattle, Washington',
+  'Denver, Colorado',
+  'Boston, Massachusetts',
+  'Miami, Florida',
+  'Atlanta, Georgia',
+  'Austin, Texas',
+  'Portland, Oregon',
+  'Las Vegas, Nevada',
+];
 
 const fieldStyles = {
   '& .MuiOutlinedInput-root': {
@@ -126,7 +145,6 @@ const buildSettingsDefaultsFromInstances = (layoutWidgets, widgetSettingsMap, pr
     }
 
     if (widgetType === 'weather') {
-      nextSettings.location = instanceSettings.location || nextSettings.location;
       nextSettings.tempUnit = instanceSettings.tempUnit || nextSettings.tempUnit;
       nextSettings.clockFormat = instanceSettings.clockFormat || nextSettings.clockFormat;
     }
@@ -136,12 +154,11 @@ const buildSettingsDefaultsFromInstances = (layoutWidgets, widgetSettingsMap, pr
     }
 
     if (widgetType === 'airquality') {
-      nextSettings.location = instanceSettings.location || nextSettings.location;
+      // Keep global default location user-controlled in Settings.
     }
 
     if (widgetType === 'compliments') {
       nextSettings.complimentsConfigUrl = instanceSettings.complimentsConfigUrl || nextSettings.complimentsConfigUrl;
-      nextSettings.location = instanceSettings.location || nextSettings.location;
     }
   });
 
@@ -205,6 +222,46 @@ const getPremiumChipConfig = (status) => {
   };
 };
 
+const LOCATION_WIDGETS = new Set(['weather', 'airquality', 'compliments']);
+
+const fetchOpenMeteoSuggestions = async (query) => {
+  if (!query || query.length < 1) return [];
+
+  const response = await fetch(
+    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=10&language=en&format=json`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Fallback geocoding failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const results = Array.isArray(data?.results) ? data.results : [];
+
+  return results.map((item) => {
+    const parts = [item.name, item.admin1, item.country].filter(Boolean);
+    return parts.join(', ');
+  });
+};
+
+const applyDefaultLocationToWidgetSettings = (layoutWidgets, widgetSettingsMap, defaultLocation) => {
+  const nextWidgetSettings = { ...widgetSettingsMap };
+
+  layoutWidgets.forEach((widgetType, position) => {
+    if (!LOCATION_WIDGETS.has(widgetType)) return;
+
+    const currentSettings = nextWidgetSettings[position];
+    if (!currentSettings || currentSettings.widgetType !== widgetType) return;
+
+    nextWidgetSettings[position] = {
+      ...currentSettings,
+      location: defaultLocation,
+    };
+  });
+
+  return nextWidgetSettings;
+};
+
 export const SettingsPanel = ({ isOpen, onClose }) => {
   const { settings, layout, widgetSettings, saveDashboardConfiguration } = useContext(WidgetContext);
   const auth = useAuth();
@@ -229,6 +286,11 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [checkoutCardholder, setCheckoutCardholder] = useState('');
   const [checkoutMessage, setCheckoutMessage] = useState('');
+  const [citySuggestions, setCitySuggestions] = useState([]);
+  const [cityLoading, setCityLoading] = useState(false);
+  const debounceTimerRef = useRef(null);
+  const searchCacheRef = useRef({});
+  const citySearchRequestRef = useRef(0);
 
   const accountLabel = auth.user?.name || auth.user?.email || auth.user?.username || 'Signed in user';
 
@@ -310,6 +372,141 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
     setAuthResetPassword('');
     setAuthMessage('You are signed in.');
   }, [auth.isAuthenticated]);
+
+  useEffect(() => () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const query = String(localSettings.location || '').trim();
+    const requestId = ++citySearchRequestRef.current;
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    if (!query) {
+      setCitySuggestions(FALLBACK_CITIES.slice(0, 8));
+      setCityLoading(false);
+      return;
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      fetchCitySuggestions(query, localSettings.openweatherApiKey, requestId);
+    }, 300);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [isOpen, localSettings.location, localSettings.openweatherApiKey]);
+
+  const fetchCitySuggestions = async (query, apiKey, requestId) => {
+    if (!query || query.length < 1) {
+      if (requestId === citySearchRequestRef.current) {
+        setCitySuggestions([]);
+        setCityLoading(false);
+      }
+      return;
+    }
+
+    const cacheKey = `${apiKey || 'fallback'}:${query.toLowerCase()}`;
+    if (searchCacheRef.current[cacheKey]) {
+      if (requestId === citySearchRequestRef.current) {
+        setCitySuggestions(searchCacheRef.current[cacheKey]);
+        setCityLoading(false);
+      }
+      return;
+    }
+
+    if (!apiKey) {
+      setCityLoading(true);
+      try {
+        const openMeteoResults = await fetchOpenMeteoSuggestions(query);
+        const fallbackCities = FALLBACK_CITIES.filter((city) => city.toLowerCase().includes(query.toLowerCase()));
+        const merged = Array.from(new Set([...openMeteoResults, ...fallbackCities]));
+        const fallbackResults = merged.length > 0 ? merged : FALLBACK_CITIES.slice(0, 8);
+        searchCacheRef.current[cacheKey] = fallbackResults;
+        if (requestId === citySearchRequestRef.current) {
+          setCitySuggestions(fallbackResults);
+        }
+      } catch {
+        const fallbackCities = FALLBACK_CITIES.filter((city) => city.toLowerCase().includes(query.toLowerCase()));
+        const fallbackResults = fallbackCities.length > 0 ? fallbackCities : FALLBACK_CITIES.slice(0, 8);
+        searchCacheRef.current[cacheKey] = fallbackResults;
+        if (requestId === citySearchRequestRef.current) {
+          setCitySuggestions(fallbackResults);
+        }
+      } finally {
+        if (requestId === citySearchRequestRef.current) {
+          setCityLoading(false);
+        }
+      }
+      return;
+    }
+
+    setCityLoading(true);
+    try {
+      const response = await fetch(
+        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=10&appid=${apiKey}`
+      );
+      if (!response.ok) throw new Error(`City search failed: ${response.status}`);
+
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        const formatted = data.map((location) => {
+          let label = location.name;
+          if (location.state) label += `, ${location.state}`;
+          if (location.country) label += `, ${location.country}`;
+          return label;
+        });
+
+        searchCacheRef.current[cacheKey] = formatted;
+        if (requestId === citySearchRequestRef.current) {
+          setCitySuggestions(formatted);
+        }
+      } else if (requestId === citySearchRequestRef.current) {
+        setCitySuggestions([]);
+      }
+    } catch (error) {
+      try {
+        const openMeteoResults = await fetchOpenMeteoSuggestions(query);
+        const fallbackCities = FALLBACK_CITIES.filter((city) => city.toLowerCase().includes(query.toLowerCase()));
+        const merged = Array.from(new Set([...openMeteoResults, ...fallbackCities]));
+        const fallbackResults = merged.length > 0 ? merged : FALLBACK_CITIES.slice(0, 8);
+
+        if (requestId === citySearchRequestRef.current) {
+          setCitySuggestions(fallbackResults);
+        }
+      } catch {
+        if (requestId === citySearchRequestRef.current) {
+          const fallbackCities = FALLBACK_CITIES.filter((city) => city.toLowerCase().includes(query.toLowerCase()));
+          setCitySuggestions(fallbackCities.length > 0 ? fallbackCities : FALLBACK_CITIES.slice(0, 8));
+        }
+      }
+    } finally {
+      if (requestId === citySearchRequestRef.current) {
+        setCityLoading(false);
+      }
+    }
+  };
+
+  const handleLocationInputChange = (newInputValue) => {
+    handleDefaultSettingChange('location', newInputValue);
+  };
+
+  const handleLocationFocus = () => {
+    const current = String(localSettings.location || '').trim();
+    if (!current) {
+      setCitySuggestions(FALLBACK_CITIES.slice(0, 8));
+      return;
+    }
+  };
 
   useEffect(() => {
     if (auth.isAuthenticated) return;
@@ -568,7 +765,14 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
 
   const handleSave = () => {
     const nextSettings = buildSettingsDefaultsFromInstances(localLayout, localWidgetSettings, localSettings);
-    saveDashboardConfiguration(localLayout, localWidgetSettings, nextSettings, localLayoutPreset);
+    const defaultLocation = String(nextSettings.location || '').trim();
+    const nextWidgetSettings = applyDefaultLocationToWidgetSettings(
+      localLayout,
+      localWidgetSettings,
+      defaultLocation
+    );
+
+    saveDashboardConfiguration(localLayout, nextWidgetSettings, nextSettings, localLayoutPreset);
     onClose();
   };
 
@@ -1029,6 +1233,63 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                   ))}
                 </Select>
               </FormControl>
+            </Stack>
+          </Box>
+
+          <Box>
+            <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 2 }}>Default Location</Typography>
+            <Stack spacing={1}>
+              <Autocomplete
+                freeSolo
+                options={citySuggestions}
+                filterOptions={(options) => options}
+                openOnFocus
+                value={localSettings.location || ''}
+                onChange={(event, newValue) => {
+                  handleDefaultSettingChange('location', newValue || '');
+                }}
+                inputValue={localSettings.location || ''}
+                onInputChange={(event, newInputValue) => handleLocationInputChange(newInputValue)}
+                onFocus={handleLocationFocus}
+                loading={cityLoading}
+                noOptionsText="No matching locations"
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    fullWidth
+                    label="Location"
+                    placeholder="Enter city name (e.g., New York)"
+                    helperText="Used as the default for widgets that require a location"
+                    variant="outlined"
+                    sx={fieldStyles}
+                  />
+                )}
+                slotProps={{
+                  popper: {
+                    sx: {
+                      zIndex: 2000,
+                    },
+                  },
+                  paper: {
+                    sx: {
+                      bgcolor: '#121212',
+                      color: '#f3f3f3',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      '& .MuiAutocomplete-listbox': {
+                        '& li': {
+                          padding: '8px 16px',
+                          '&[aria-selected="true"]': {
+                            bgcolor: 'rgba(33,150,243,0.24)',
+                          },
+                          '&:hover': {
+                            bgcolor: 'rgba(33,150,243,0.16)',
+                          },
+                        },
+                      },
+                    },
+                  },
+                }}
+              />
             </Stack>
           </Box>
 

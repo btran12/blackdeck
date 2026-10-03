@@ -125,7 +125,7 @@ export const Dashboard = () => {
       return (
         <WidgetComponent
           apiKey={widgetSettings.openweatherApiKey || settings.openweatherApiKey}
-          location={widgetSettings.location}
+          location={widgetSettings.location || settings.location}
           tempUnit={widgetSettings.tempUnit}
           clockFormat={widgetSettings.clockFormat}
           pollIntervalMinutes={widgetSettings.weatherPollIntervalMinutes}
@@ -159,7 +159,7 @@ export const Dashboard = () => {
         <WidgetComponent
           configUrl={widgetSettings.complimentsConfigUrl}
           weatherApiKey={widgetSettings.openweatherApiKey || settings.openweatherApiKey}
-          location={widgetSettings.location}
+          location={widgetSettings.location || settings.location}
           pollIntervalMinutes={widgetSettings.complimentsPollIntervalMinutes}
           showFade={widgetSettings.showFade}
         />
@@ -175,7 +175,13 @@ export const Dashboard = () => {
         />
       );
     } else if (widgetType === 'clock') {
-      return <WidgetComponent clockFormat={widgetSettings.clockFormat} showFade={widgetSettings.showFade} />;
+      return (
+        <WidgetComponent
+          clockFormat={widgetSettings.clockFormat}
+          clockPosition={widgetSettings.clockPosition}
+          showFade={widgetSettings.showFade}
+        />
+      );
     } else if (widgetType === 'stocks') {
       return (
         <WidgetComponent
@@ -199,7 +205,7 @@ export const Dashboard = () => {
       return (
         <WidgetComponent
           apiKey={widgetSettings.openweatherApiKey || settings.openweatherApiKey}
-          location={widgetSettings.location}
+          location={widgetSettings.location || settings.location}
           pollIntervalMinutes={widgetSettings.airQualityPollIntervalMinutes}
           showFade={widgetSettings.showFade}
         />
