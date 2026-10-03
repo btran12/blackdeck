@@ -2,6 +2,10 @@
 
 A modern, interactive dashboard application built with React and Vite that displays real-time information through customizable widgets. BlackDeck provides a sleek, dark-themed interface for monitoring weather, news, stocks, crypto, sports, air quality, Reddit highlights, and more.
 
+## Screenshot
+
+![BlackDeck Dashboard](preview.png)
+
 ## 🌟 Features
 
 ### Interactive Dashboard
@@ -309,6 +313,66 @@ Core dependencies:
 - `react-dom` - React DOM rendering
 - `@mui/material` - Material Design components
 - `@emotion/react` & `@emotion/styled` - Styling
+
+## 💻 Local Setup Guide
+
+If you want to run BlackDeck locally, follow these steps.
+
+### 1) Install Prerequisites
+- Node.js 18+ recommended
+- npm (comes with Node.js)
+
+Check your versions:
+
+```bash
+node -v
+npm -v
+```
+
+### 2) Clone and Install
+
+```bash
+git clone https://github.com/btran12/react-magicmirror.git
+cd react-magicmirror
+npm install
+```
+
+### 3) Start the App Locally
+
+```bash
+npm run dev
+```
+
+Then open:
+
+```text
+http://localhost:5173
+```
+
+### 4) Configure Settings (Optional)
+- Open the Settings panel in the app.
+- Add your default location and service API keys if you plan to use those widgets.
+- You can still use many features without all keys configured.
+
+### 5) Build and Preview Production Locally
+
+```bash
+npm run build
+npm run preview
+```
+
+Preview URL is shown in terminal output (typically `http://localhost:4173`).
+
+### 6) Lint the Project
+
+```bash
+npm run lint
+```
+
+### Local Troubleshooting
+- If dependencies act stale: remove `node_modules` and reinstall.
+- If the app behaves unexpectedly: clear `localStorage` in browser devtools.
+- If a port is busy: stop the conflicting process or pass a custom Vite port.
 
 ## 🚀 Deployment
 
