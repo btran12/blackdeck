@@ -18,6 +18,7 @@ export const WIDGET_OPTIONS = [
   { value: 'crypto', label: 'Crypto' },
   { value: 'airquality', label: 'Air Quality' },
   { value: 'sports', label: 'Sports' },
+  { value: 'languagelearning', label: 'Language Learning' },
   { value: 'animations', label: 'Animations' },
 ];
 
@@ -33,6 +34,7 @@ export const WIDGET_LABELS = {
   crypto: 'Crypto',
   airquality: 'Air Quality',
   sports: 'Sports',
+  languagelearning: 'Language Learning',
   animations: 'Animations',
 };
 
@@ -150,6 +152,7 @@ export const DEFAULT_WIDGET_FADE = {
   crypto: false,
   airquality: false,
   sports: false,
+  languagelearning: false,
   animations: false,
 };
 
@@ -280,6 +283,15 @@ export const createWidgetSettingsForType = (widgetType, defaults = {}) => {
         sportsTeams: defaults.sportsTeams || '',
         sportsLivePollIntervalMinutes: defaults.sportsLivePollIntervalMinutes || 1,
         showFade: defaults.showFade ?? DEFAULT_WIDGET_FADE.sports,
+      };
+    case 'languagelearning':
+      return {
+        widgetType,
+        learningLanguagePack: defaults.learningLanguagePack || 'es-en-common',
+        learningBatchSize: defaults.learningBatchSize === 10 ? 10 : 5,
+        learningRandomize: defaults.learningRandomize ?? true,
+        learningRotationIntervalSeconds: defaults.learningRotationIntervalSeconds || 30,
+        showFade: defaults.showFade ?? DEFAULT_WIDGET_FADE.languagelearning,
       };
     case 'animations':
       return {

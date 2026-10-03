@@ -636,8 +636,8 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
         }}
       >
         <Stack spacing={4}>
-          <Box>
-            <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 2 }}>Account</Typography>
+          <Box sx={{ order: 99 }}>
+            <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 2, mt: 2 }}>Account</Typography>
             <Stack spacing={1.5}>
               {auth.isLoading && (
                 <Typography sx={{ color: '#999999', fontSize: '0.9rem' }}>Checking sign-in status...</Typography>
@@ -949,7 +949,7 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
             </Stack>
           </Box>
 
-          <Divider sx={{ borderColor: 'rgba(255,255,255,0.16)' }} />
+          <Divider sx={{ borderColor: 'rgba(255,255,255,0.16)', order: 98, mb: 2 }} />
 
           <Box>
             <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 3 }}>Dashboard Layout</Typography>

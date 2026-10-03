@@ -4,7 +4,7 @@ This stack creates the AWS backend for Blackdeck's premium feature with complete
 
 - DynamoDB subscriptions table
 - Lambda entitlement handler (`GET /v1/entitlements/me`)
-- Lambda service handlers for all 6 premium services
+- Lambda service handlers for all premium services
 - API Gateway HTTP API with Cognito JWT authorizer
 
 ## What the stack gives you
@@ -19,6 +19,7 @@ This stack creates the AWS backend for Blackdeck's premium feature with complete
 - `GET /v1/services/stocks` - Stock quotes
 - `GET /v1/services/crypto` - Cryptocurrency prices
 - `GET /v1/services/holidays` - Upcoming US holidays
+- `GET /v1/services/reddit` - Reddit posts by subreddit
 - `GET /v1/services/sports` - Sports scores and events
 - `GET /v1/services/calendar-ics?url=https://...` - ICS proxy for calendar feeds that block browser CORS
 
@@ -150,6 +151,19 @@ curl -H "Authorization: Bearer $JWT_TOKEN" \
 ```
 
 Response: Array of US public holidays with name, date, type
+
+### Reddit (Premium Only)
+
+```bash
+curl -H "Authorization: Bearer $JWT_TOKEN" \
+  "https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/prod/v1/services/reddit?subreddits=news,worldnews,UpliftingNews&limit=5"
+```
+
+Query Parameters:
+- `subreddits` (optional): Comma-separated subreddit names (without `r/`). Defaults to `news,worldnews,UpliftingNews`.
+- `limit` (optional): Number of posts per subreddit (`1-25`, default `5`).
+
+Response: JSON object containing `posts` array.
 
 ### Sports (Premium Only)
 

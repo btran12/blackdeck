@@ -17,6 +17,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { SPORTS_LEAGUES } from './widgets/Sports';
+import { LANGUAGE_PACK_OPTIONS } from './widgets/languagePacks';
 import { WidgetContext } from '../context/WidgetContext';
 
 const FALLBACK_CITIES = [
@@ -974,6 +975,66 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange, isPrem
         </Stack>
       );
     }
+    case 'languagelearning':
+      return (
+        <Stack spacing={2}>
+          <FormControl variant="outlined">
+            <InputLabel sx={{ color: '#cccccc' }}>Language Pack</InputLabel>
+            <Select
+              value={settings.learningLanguagePack || 'es-en-common'}
+              onChange={(event) => updateSetting('learningLanguagePack', event.target.value)}
+              label="Language Pack"
+              sx={selectStyles}
+              MenuProps={menuProps}
+            >
+              {LANGUAGE_PACK_OPTIONS.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl variant="outlined">
+            <InputLabel sx={{ color: '#cccccc' }}>Words Per View</InputLabel>
+            <Select
+              value={settings.learningBatchSize === 10 ? 10 : 5}
+              onChange={(event) => updateSetting('learningBatchSize', Number(event.target.value) === 10 ? 10 : 5)}
+              label="Words Per View"
+              sx={selectStyles}
+              MenuProps={menuProps}
+            >
+              <MenuItem value={5}>5</MenuItem>
+              <MenuItem value={10}>10</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={settings.learningRandomize ?? true}
+                onChange={(event) => updateSetting('learningRandomize', event.target.checked)}
+                sx={switchStyles}
+              />
+            }
+            label="Randomize Rotation"
+            sx={{ color: '#ffffff' }}
+          />
+          <TextField
+            fullWidth
+            label="Rotation Interval (Seconds)"
+            type="number"
+            value={settings.learningRotationIntervalSeconds ?? 30}
+            onChange={(event) => updateSetting('learningRotationIntervalSeconds', Number(event.target.value) || 5)}
+            inputProps={{ min: 5, max: 600, step: 1 }}
+            helperText="How often to rotate to the next phrase"
+            variant="outlined"
+            sx={{
+              ...fieldStyles,
+              '& .MuiFormHelperText-root': { color: '#999999' },
+            }}
+          />
+          {renderFadeToggle()}
+        </Stack>
+      );
     case 'animations': {
       const selectedAnimationType = settings.animationType === 'sleepycat'
         ? 'nekocat'

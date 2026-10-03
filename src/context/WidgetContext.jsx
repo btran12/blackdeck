@@ -117,6 +117,19 @@ const getInitialLayout = () => {
   try {
     const stored = localStorage.getItem('layout');
     const widgets = stored ? normalizeLayoutWidgets(JSON.parse(stored)) : DEFAULT_LAYOUT;
+
+    // One-time migration: surface the new language learning widget in the first empty slot.
+    const languageLearningMigrationKey = 'languageLearningWidgetMigrationV1';
+    const languageLearningAlreadyMigrated = localStorage.getItem(languageLearningMigrationKey) === 'true';
+
+    if (!languageLearningAlreadyMigrated && !widgets.includes('languagelearning')) {
+      const firstEmptyIndex = widgets.findIndex((widgetType) => widgetType == null);
+      if (firstEmptyIndex !== -1) {
+        widgets[firstEmptyIndex] = 'languagelearning';
+      }
+      localStorage.setItem(languageLearningMigrationKey, 'true');
+    }
+
     const preset = normalizeLayoutPreset(localStorage.getItem('layoutPreset') || DEFAULT_LAYOUT_PRESET);
     return {
       widgets,

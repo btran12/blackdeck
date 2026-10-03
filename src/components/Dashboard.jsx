@@ -26,6 +26,7 @@ import { Stocks } from './widgets/Stocks';
 import { Crypto } from './widgets/Crypto';
 import { AirQuality } from './widgets/AirQuality';
 import { Sports } from './widgets/Sports';
+import { LanguageLearning } from './widgets/LanguageLearning';
 import { Animations } from './widgets/Animations';
 import { Notifications } from './Notifications';
 import { SettingsPanel } from './SettingsPanel';
@@ -52,6 +53,7 @@ const WIDGET_COMPONENTS = {
   crypto: Crypto,
   airquality: AirQuality,
   sports: Sports,
+  languagelearning: LanguageLearning,
   animations: Animations,
 };
 
@@ -71,7 +73,9 @@ export const Dashboard = () => {
   const widgets = layout.widgets;
   const activeLayoutPreset = getLayoutPreset(layout.preset);
   const gridRows = activeLayoutPreset.rows;
-  const widgetChoices = WIDGET_OPTIONS.filter((option) => option.value);
+  const widgetChoices = WIDGET_OPTIONS
+    .filter((option) => option.value)
+    .sort((a, b) => a.label.localeCompare(b.label));
 
   useEffect(() => {
     const scheduleHide = () => {
@@ -137,6 +141,7 @@ export const Dashboard = () => {
           pollIntervalMinutes={widgetSettings.redditPollIntervalMinutes}
           rotationIntervalSeconds={widgetSettings.redditRotationIntervalSeconds}
           showFade={widgetSettings.showFade}
+          usePremium={isPremium}
         />
       );
     } else if (widgetType === 'compliments') {
@@ -195,6 +200,16 @@ export const Dashboard = () => {
           leagues={widgetSettings.sportsLeagues || []}
           teams={widgetSettings.sportsTeams || ''}
           livePollIntervalMinutes={widgetSettings.sportsLivePollIntervalMinutes}
+          showFade={widgetSettings.showFade}
+        />
+      );
+    } else if (widgetType === 'languagelearning') {
+      return (
+        <WidgetComponent
+          languagePack={widgetSettings.learningLanguagePack}
+          batchSize={widgetSettings.learningBatchSize}
+          randomize={widgetSettings.learningRandomize}
+          rotationIntervalSeconds={widgetSettings.learningRotationIntervalSeconds}
           showFade={widgetSettings.showFade}
         />
       );

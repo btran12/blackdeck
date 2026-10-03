@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Typography } from '@mui/material';
 import { Widget } from '../Widget';
 import { useQuietHours } from '../../hooks/useQuietHours';
+import { useBackendService } from '../../hooks/useBackendService';
 
 const DEFAULT_SUBREDDITS = [];
 const DEFAULT_TITLES_PER_SUBREDDIT = 5;
@@ -33,6 +34,7 @@ export const Reddit = ({
   pollIntervalMinutes = DEFAULT_POLL_INTERVAL_MINUTES,
   rotationIntervalSeconds = DEFAULT_ROTATION_INTERVAL_SECONDS,
   showFade = false,
+  usePremium = false,
 }) => {
   const [posts, setPosts] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -47,19 +49,112 @@ export const Reddit = ({
   const normalizedPollIntervalMs = clamp(Number(pollIntervalMinutes), 1, 1440) * 60 * 1000;
   const normalizedRotationIntervalMs = clamp(Number(rotationIntervalSeconds), 2, 300) * 1000;
 
-  const fetchSubredditPosts = useCallback(async (subreddit) => {
-    const url = `https://www.reddit.com/r/${encodeURIComponent(subreddit)}/top.json?t=day&limit=${normalizedTitlesPerSubreddit}`;
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'react-magicmirror/1.0',
-      },
+  const backendService = useBackendService(
+    '/v1/services/reddit',
+    {
+      subreddits: normalizedSubreddits.join(','),
+      limit: normalizedTitlesPerSubreddit,
+    },
+    pollIntervalMinutes,
+    usePremium
+  );
+
+  const normalizePostShape = useCallback((rawPost) => {
+    if (!rawPost) return null;
+
+    const id = rawPost.id || rawPost.name;
+    const title = rawPost.title || rawPost.headline;
+    if (!title) return null;
+
+    const subredditName = rawPost.subreddit || rawPost.subreddit_name_prefixed?.replace(/^r\//i, '') || 'reddit';
+    const published = rawPost.publishedAt || rawPost.published_at || rawPost.created_utc;
+
+    return {
+      id,
+      title,
+      permalink: rawPost.permalink,
+      url: rawPost.url,
+      subreddit: subredditName,
+      source: rawPost.source || `Reddit - r/${subredditName}`,
+      publishedAt: typeof published === 'number'
+        ? new Date(published * 1000).toISOString()
+        : (published || new Date().toISOString()),
+    };
+  }, []);
+
+  const applyPosts = useCallback((rawPosts) => {
+    const seen = new Set();
+    const normalized = [];
+
+    (Array.isArray(rawPosts) ? rawPosts : []).forEach((post) => {
+      const mapped = normalizePostShape(post);
+      if (!mapped) return;
+
+      const key = mapped.id || mapped.permalink || `${mapped.title}-${mapped.publishedAt}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      normalized.push(mapped);
     });
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch r/${subreddit}`);
+    if (normalized.length === 0) {
+      setError('No Reddit posts found for the configured subreddits.');
+      setPosts([]);
+      return;
     }
 
-    const data = await response.json();
+    setPosts(normalized.slice(0, MAX_TOTAL_TITLES));
+    setCurrentIndex(0);
+    setError(null);
+  }, [normalizePostShape]);
+
+  const fetchRedditJsonWithFallback = useCallback(async (subreddit) => {
+    const encodedSubreddit = encodeURIComponent(subreddit);
+    const directCandidates = [
+      `https://www.reddit.com/r/${encodedSubreddit}/top.json?t=day&limit=${normalizedTitlesPerSubreddit}&raw_json=1`,
+      `https://api.reddit.com/r/${encodedSubreddit}/top?t=day&limit=${normalizedTitlesPerSubreddit}&raw_json=1`,
+      `https://www.reddit.com/r/${encodedSubreddit}/new.json?limit=${normalizedTitlesPerSubreddit}&raw_json=1`,
+      `https://old.reddit.com/r/${encodedSubreddit}/top.json?t=day&limit=${normalizedTitlesPerSubreddit}&raw_json=1`,
+    ];
+
+    const candidates = [
+      ...directCandidates,
+      ...directCandidates.map((url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`),
+      ...directCandidates.map((url) => `https://cors.isomorphic-git.org/${url}`),
+    ];
+
+    let lastStatus = null;
+    let lastErrorMessage = '';
+
+    for (const url of candidates) {
+      try {
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) {
+          if (response.status === 403) {
+            const bodyText = await response.text().catch(() => '');
+            if (bodyText.toLowerCase().includes('whoa there, pardner')) {
+              throw new Error('Reddit blocked browser requests from this network. Use a signed-in premium account for backend proxy access.');
+            }
+          }
+
+          lastStatus = response.status;
+          continue;
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        lastErrorMessage = error?.message || 'Unknown request error';
+        // Keep trying fallback endpoints.
+      }
+    }
+
+    const statusSuffix = lastStatus ? ` (HTTP ${lastStatus})` : '';
+    const detailSuffix = lastErrorMessage ? ` - ${lastErrorMessage}` : '';
+    throw new Error(`Failed to fetch r/${subreddit}${statusSuffix}${detailSuffix}`);
+  }, [normalizedTitlesPerSubreddit]);
+
+  const fetchSubredditPosts = useCallback(async (subreddit) => {
+    const data = await fetchRedditJsonWithFallback(subreddit);
     const children = Array.isArray(data?.data?.children) ? data.data.children : [];
 
     return children
@@ -74,9 +169,14 @@ export const Reddit = ({
         source: `Reddit - r/${item.subreddit}`,
         publishedAt: new Date(item.created_utc * 1000).toISOString(),
       }));
-  }, [normalizedTitlesPerSubreddit]);
+  }, [fetchRedditJsonWithFallback]);
 
   const fetchReddit = useCallback(async () => {
+    if (usePremium) {
+      await backendService.refetch(true);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -114,9 +214,41 @@ export const Reddit = ({
     } finally {
       setLoading(false);
     }
-  }, [fetchSubredditPosts, normalizedSubreddits]);
+  }, [usePremium, backendService, fetchSubredditPosts, normalizedSubreddits]);
 
   useEffect(() => {
+    if (!usePremium) return;
+
+    if (!backendService.loading && backendService.error) {
+      setError(backendService.error);
+      setLoading(false);
+      return;
+    }
+
+    const payload = backendService.data;
+    if (!payload) {
+      setLoading(backendService.loading);
+      return;
+    }
+
+    const postsFromPayload = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload.posts)
+        ? payload.posts
+        : Array.isArray(payload.items)
+          ? payload.items
+          : [];
+
+    applyPosts(postsFromPayload);
+    setLoading(backendService.loading);
+  }, [usePremium, backendService.data, backendService.loading, backendService.error, applyPosts]);
+
+  useEffect(() => {
+    if (usePremium) {
+      setLoading(backendService.loading);
+      return undefined;
+    }
+
     if (isQuietHours) {
       setLoading(false);
       return undefined;
@@ -128,7 +260,7 @@ export const Reddit = ({
     return () => {
       clearInterval(pollInterval);
     };
-  }, [fetchReddit, normalizedPollIntervalMs, isQuietHours]);
+  }, [usePremium, fetchReddit, normalizedPollIntervalMs, isQuietHours, backendService.loading]);
 
   useEffect(() => {
     if (posts.length === 0) return undefined;
