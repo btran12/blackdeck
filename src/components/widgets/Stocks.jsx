@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Box, Typography } from '@mui/material';
 import { Widget } from '../Widget';
 import { useBackendService } from '../../hooks/useBackendService';
+import { useQuietHours } from '../../hooks/useQuietHours';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -15,6 +16,7 @@ export const Stocks = ({ apiKey, tickers = [], pollIntervalMinutes = 5, showFade
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const pollIntervalMs = clamp(Number(pollIntervalMinutes), 1, 1440) * 60 * 1000;
+  const { isQuietHours } = useQuietHours();
 
   const validTickers = tickers.filter(t => t && t.trim());
   const backendService = useBackendService(
@@ -23,6 +25,53 @@ export const Stocks = ({ apiKey, tickers = [], pollIntervalMinutes = 5, showFade
     pollIntervalMinutes,
     usePremium
   );
+
+  const fetchQuotes = useCallback(async () => {
+    if (!apiKey) {
+      setError('Finnhub API key not configured');
+      setLoading(false);
+      return;
+    }
+
+    if (validTickers.length === 0) {
+      setError('No tickers configured');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const results = await Promise.all(
+        validTickers.map(async (symbol) => {
+          const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol.trim())}&token=${apiKey}`;
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(`Failed to fetch ${symbol}`);
+          const data = await response.json();
+          return {
+            symbol: symbol.trim().toUpperCase(),
+            price: data.c,
+            change: data.d,
+            changePercent: data.dp,
+          };
+        })
+      );
+      setQuotes(results);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [apiKey, validTickers]);
+
+  const handleRefresh = useCallback(() => {
+    if (usePremium) {
+      backendService.refetch(true);
+      return;
+    }
+
+    fetchQuotes();
+  }, [usePremium, backendService, fetchQuotes]);
 
   useEffect(() => {
     // Use backend service if premium
@@ -47,31 +96,10 @@ export const Stocks = ({ apiKey, tickers = [], pollIntervalMinutes = 5, showFade
       return;
     }
 
-    const fetchQuotes = async () => {
-      try {
-        setLoading(true);
-        const results = await Promise.all(
-          validTickers.map(async (symbol) => {
-            const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol.trim())}&token=${apiKey}`;
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`Failed to fetch ${symbol}`);
-            const data = await response.json();
-            return {
-              symbol: symbol.trim().toUpperCase(),
-              price: data.c,
-              change: data.d,
-              changePercent: data.dp,
-            };
-          })
-        );
-        setQuotes(results);
-        setError(null);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (isQuietHours) {
+      setLoading(false);
+      return;
+    }
 
     fetchQuotes();
     const interval = setInterval(() => {
@@ -79,7 +107,7 @@ export const Stocks = ({ apiKey, tickers = [], pollIntervalMinutes = 5, showFade
     }, pollIntervalMs);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [usePremium, apiKey, pollIntervalMs, JSON.stringify(tickers), backendService.data, backendService.loading, backendService.error]);
+  }, [usePremium, apiKey, pollIntervalMs, isQuietHours, fetchQuotes, JSON.stringify(tickers), backendService.data, backendService.loading, backendService.error]);
 
   const formatPrice = (price) => {
     if (price == null || price === 0) return '—';
@@ -93,7 +121,7 @@ export const Stocks = ({ apiKey, tickers = [], pollIntervalMinutes = 5, showFade
   };
 
   return (
-    <Widget widgetType="stocks" showFade={showFade}>
+    <Widget widgetType="stocks" showFade={showFade} onRefresh={handleRefresh}>
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
         {loading && (

@@ -6,6 +6,8 @@ import {
   DialogActions,
   TextField,
   Select,
+  Switch,
+  FormControlLabel,
   MenuItem,
   FormControl,
   InputLabel,
@@ -1027,6 +1029,77 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
                   ))}
                 </Select>
               </FormControl>
+            </Stack>
+          </Box>
+
+          <Box>
+            <Typography sx={{ color: '#ffffff', fontWeight: 'bold', mb: 2 }}>Service Polling</Typography>
+            <Stack spacing={2}>
+              <FormControlLabel
+                control={(
+                  <Switch
+                    checked={Boolean(localSettings.quietHoursEnabled)}
+                    onChange={(e) => handleDefaultSettingChange('quietHoursEnabled', e.target.checked)}
+                    sx={{
+                      '& .MuiSwitch-switchBase.Mui-checked': {
+                        color: '#2196f3',
+                        '&:hover': { bgcolor: 'rgba(33, 150, 243, 0.08)' },
+                      },
+                      '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                        bgcolor: 'rgba(33, 150, 243, 0.3)',
+                      },
+                      '& .MuiSwitch-track': {
+                        bgcolor: '#444444',
+                      },
+                    }}
+                  />
+                )}
+                label="Enable Quiet Hours"
+                sx={{ color: '#d9dee7' }}
+              />
+
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                <TextField
+                  fullWidth
+                  label="Quiet Hours Start"
+                  type="time"
+                  value={localSettings.quietHoursStart || '23:00'}
+                  onChange={(e) => handleDefaultSettingChange('quietHoursStart', e.target.value)}
+                  variant="outlined"
+                  disabled={!localSettings.quietHoursEnabled}
+                  sx={{
+                    ...fieldStyles,
+                    maxWidth: 260,
+                    '& input::-webkit-calendar-picker-indicator': {
+                      filter: 'invert(0.85)',
+                    },
+                  }}
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ step: 60 }}
+                />
+                <TextField
+                  fullWidth
+                  label="Quiet Hours End"
+                  type="time"
+                  value={localSettings.quietHoursEnd || '06:00'}
+                  onChange={(e) => handleDefaultSettingChange('quietHoursEnd', e.target.value)}
+                  variant="outlined"
+                  disabled={!localSettings.quietHoursEnabled}
+                  sx={{
+                    ...fieldStyles,
+                    maxWidth: 260,
+                    '& input::-webkit-calendar-picker-indicator': {
+                      filter: 'invert(0.85)',
+                    },
+                  }}
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ step: 60 }}
+                />
+              </Stack>
+
+              <Typography sx={{ color: '#95a1b3', fontSize: '0.8rem' }}>
+                During quiet hours, automatic polling pauses for service-backed widgets and resumes automatically after the end time.
+              </Typography>
             </Stack>
           </Box>
 

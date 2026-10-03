@@ -1,159 +1,402 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
-  Typography,
   CircularProgress,
+  Stack,
+  Typography,
 } from '@mui/material';
+import ICAL from 'ical.js';
 import { Widget } from '../Widget';
 import { getServiceEndpoint } from '../../config/endpoints';
+import { useQuietHours } from '../../hooks/useQuietHours';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const CALENDAR_PROXY_PATH = '/v1/services/calendar-ics';
+const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-// Parse a bare iCal date/datetime value string into a Date.
-// Supports: YYYYMMDD, YYYYMMDDTHHmmSS, YYYYMMDDTHHmmSSZ
-const parseIcsDate = (value) => {
-  if (!value || value.length < 8) return null;
-  const y = parseInt(value.slice(0, 4), 10);
-  const mo = parseInt(value.slice(4, 6), 10) - 1;
-  const d = parseInt(value.slice(6, 8), 10);
-  if (value.length === 8) {
-    // Date-only (all-day)
-    return new Date(y, mo, d);
-  }
-  // Date-time
-  const h = parseInt(value.slice(9, 11), 10);
-  const mi = parseInt(value.slice(11, 13), 10);
-  const s = value.length >= 15 ? parseInt(value.slice(13, 15), 10) : 0;
-  if ([y, mo, d, h, mi, s].some((n) => Number.isNaN(n))) return null;
-  return value.endsWith('Z')
-    ? new Date(Date.UTC(y, mo, d, h, mi, s))
-    : new Date(y, mo, d, h, mi, s);
+const normalizeIcsUrl = (value) => String(value || '').trim();
+
+const truncateText = (value, max = 120) => {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 1)}...`;
 };
 
-// Parse iCalendar text into a list of event objects with id, summary, start, end, isAllDay.
-const parseIcs = (text) => {
-  // Unfold continuation lines (CRLF or LF followed by a space/tab)
-  const unfolded = text.replace(/\r\n([ \t])/g, '$1').replace(/\n([ \t])/g, '$1');
-  const lines = unfolded.split(/\r?\n/);
+const getSourceLabel = (source, index) => {
+  try {
+    const parsed = new URL(source);
+    return `${parsed.hostname}${parsed.pathname}`;
+  } catch {
+    return `Source ${index + 1}`;
+  }
+};
 
-  const events = [];
-  let inEvent = false;
-  let current = {};
+const formatFetchError = (error, contextLabel) => {
+  const message = String(error?.message || 'Failed to load feed');
+  return `${contextLabel}: ${truncateText(message)}`;
+};
 
-  for (const line of lines) {
-    if (line === 'BEGIN:VEVENT') {
-      inEvent = true;
-      current = {};
-    } else if (line === 'END:VEVENT') {
-      if (current.summary && current.start && !isNaN(current.start)) {
-        events.push(current);
-      }
-      inEvent = false;
-    } else if (inEvent) {
-      const colonIdx = line.indexOf(':');
-      if (colonIdx === -1) continue;
-      // Key may contain parameters, e.g. DTSTART;TZID=America/New_York
-      const keyPart = line.slice(0, colonIdx).toUpperCase();
-      const value = line.slice(colonIdx + 1).trim();
-      const key = keyPart.split(';')[0];
+const createTimeoutSignal = (timeoutMs) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort(new Error('Request timed out'));
+  }, timeoutMs);
+  return { signal: controller.signal, timeoutId };
+};
 
-      if (key === 'SUMMARY') {
-        current.summary = value
-          .replace(/\\n/g, ' ')
-          .replace(/\\,/g, ',')
-          .replace(/\\;/g, ';')
-          .replace(/\\\\/g, '\\');
-      } else if (key === 'UID') {
-        current.id = value;
-      } else if (key === 'DTSTART') {
-        current.isAllDay = !value.includes('T');
-        current.start = parseIcsDate(value);
-      } else if (key === 'DTEND') {
-        current.end = parseIcsDate(value);
-      }
+const fetchCalendarResponseText = async (url, timeoutMs = 20000) => {
+  const { signal, timeoutId } = createTimeoutSignal(timeoutMs);
+
+  try {
+    const response = await fetch(url, { signal });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `HTTP ${response.status}`);
+    }
+
+    return await response.text();
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('The read operation timed out');
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const fetchIcsTextWithFallback = async (source, calendarProxyEndpoint) => {
+  const attempts = [];
+
+  if (calendarProxyEndpoint) {
+    attempts.push({
+      mode: 'proxy',
+      url: `${calendarProxyEndpoint}?${new URLSearchParams({ url: source }).toString()}`,
+      timeoutMs: 25000,
+    });
+  }
+
+  attempts.push({
+    mode: 'direct',
+    url: source,
+    timeoutMs: 20000,
+  });
+
+  const attemptErrors = [];
+
+  for (const attempt of attempts) {
+    try {
+      return await fetchCalendarResponseText(attempt.url, attempt.timeoutMs);
+    } catch (error) {
+      attemptErrors.push(formatFetchError(error, attempt.mode === 'proxy' ? 'proxy fetch failed' : 'direct fetch failed'));
     }
   }
 
-  return events;
+  throw new Error(attemptErrors.join(' | '));
 };
 
-export const Calendar = ({ icsUrl, pollIntervalMinutes = 30, showFade = false }) => {
+const buildCalendarSources = ({ icsUrl, icsUrls = [], mergeFeeds = false }) => {
+  const single = normalizeIcsUrl(icsUrl);
+  const selected = Array.isArray(icsUrls)
+    ? icsUrls.map(normalizeIcsUrl).filter(Boolean)
+    : [];
+
+  if (mergeFeeds) {
+    return Array.from(new Set([single, ...selected].filter(Boolean)));
+  }
+
+  if (!single) return [];
+  return [single];
+};
+
+const atStartOfDay = (date) => {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+};
+
+const atStartOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1);
+
+const addDays = (date, amount) => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+};
+
+const toDateKey = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const safeJsDate = (icalTime) => {
+  if (!icalTime || typeof icalTime.toJSDate !== 'function') return null;
+  const value = icalTime.toJSDate();
+  return Number.isNaN(value?.getTime?.()) ? null : value;
+};
+
+const buildEvent = (event, startTime, endTime, suffix = '', sourceId = 'default') => {
+  const start = safeJsDate(startTime);
+  if (!start) return null;
+
+  const isAllDay = Boolean(startTime?.isDate);
+  const resolvedEnd = safeJsDate(endTime)
+    || (isAllDay ? addDays(start, 1) : start);
+
+  return {
+    id: `${sourceId}:${event.uid || event.summary || 'event'}:${suffix || start.toISOString()}`,
+    summary: event.summary || 'Untitled event',
+    start,
+    end: resolvedEnd,
+    isAllDay,
+  };
+};
+
+const parseIcs = (text, sourceId = 'default') => {
+  let component;
+  try {
+    component = new ICAL.Component(ICAL.parse(text));
+  } catch {
+    return [];
+  }
+
+  const now = ICAL.Time.now();
+  const rangeStart = now.clone();
+  rangeStart.adjust(-1, 0, 0, 0);
+
+  const rangeEnd = now.clone();
+  rangeEnd.adjust(18, 0, 0, 0);
+
+  const records = [];
+  const seen = new Set();
+  const vevents = component.getAllSubcomponents('vevent') || [];
+
+  vevents.forEach((vevent) => {
+    const event = new ICAL.Event(vevent);
+
+    if (!event.startDate) return;
+
+    if (event.isRecurring()) {
+      const iterator = event.iterator(rangeStart);
+      let occurrence = iterator.next();
+      let guard = 0;
+
+      while (occurrence && guard < 1500) {
+        guard += 1;
+        if (occurrence.compare(rangeEnd) > 0) break;
+
+        const details = event.getOccurrenceDetails(occurrence);
+        const parsed = buildEvent(event, details.startDate, details.endDate, occurrence.toString(), sourceId);
+        if (parsed) {
+          const dedupeKey = `${parsed.id}:${parsed.start.toISOString()}`;
+          if (!seen.has(dedupeKey)) {
+            seen.add(dedupeKey);
+            records.push(parsed);
+          }
+        }
+
+        occurrence = iterator.next();
+      }
+
+      return;
+    }
+
+    const parsed = buildEvent(event, event.startDate, event.endDate, '', sourceId);
+    if (parsed) {
+      const dedupeKey = `${parsed.id}:${parsed.start.toISOString()}`;
+      if (!seen.has(dedupeKey)) {
+        seen.add(dedupeKey);
+        records.push(parsed);
+      }
+    }
+  });
+
+  return records.sort((a, b) => a.start - b.start);
+};
+
+const buildMonthGrid = (viewMonth) => {
+  const firstOfMonth = atStartOfMonth(viewMonth);
+  const firstWeekday = firstOfMonth.getDay();
+  const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0).getDate();
+  const todayKey = toDateKey(new Date());
+
+  const cells = [];
+
+  for (let i = 0; i < firstWeekday; i += 1) {
+    cells.push({
+      key: `empty-start-${i}`,
+      isEmpty: true,
+    });
+  }
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const date = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), day);
+    cells.push({
+      date,
+      key: toDateKey(date),
+      isToday: toDateKey(date) === todayKey,
+      isEmpty: false,
+    });
+  }
+
+  return cells;
+};
+
+const mapEventsByDate = (events) => {
+  const mapped = {};
+
+  events.forEach((event) => {
+    const start = atStartOfDay(event.start);
+    const rawEnd = event.end ? atStartOfDay(event.end) : start;
+    const endInclusive = event.isAllDay
+      ? addDays(rawEnd, -1)
+      : rawEnd;
+    const spanEnd = endInclusive < start ? start : endInclusive;
+
+    for (let day = new Date(start); day <= spanEnd; day = addDays(day, 1)) {
+      const dayKey = toDateKey(day);
+      if (!mapped[dayKey]) mapped[dayKey] = [];
+      mapped[dayKey].push(event);
+    }
+  });
+
+  Object.values(mapped).forEach((items) => {
+    items.sort((a, b) => a.start - b.start);
+  });
+
+  return mapped;
+};
+
+export const Calendar = ({
+  icsUrl,
+  icsUrls = [],
+  mergeFeeds = false,
+  pollIntervalMinutes = 30,
+  showFade = false,
+}) => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const normalizedPollIntervalMs = clamp(Number(pollIntervalMinutes), 1, 1440) * 60 * 1000;
   const calendarProxyEndpoint = getServiceEndpoint(CALENDAR_PROXY_PATH);
+  const { isQuietHours } = useQuietHours();
+  const sources = useMemo(
+    () => buildCalendarSources({ icsUrl, icsUrls, mergeFeeds }),
+    [icsUrl, icsUrls, mergeFeeds]
+  );
 
   const fetchEvents = useCallback(async () => {
-    if (!icsUrl) {
+    if (sources.length === 0) {
       setEvents([]);
+      setError(null);
       return;
     }
+
     setLoading(true);
     setError(null);
-    try {
-      const sourceUrl = calendarProxyEndpoint
-        ? `${calendarProxyEndpoint}?${new URLSearchParams({ url: icsUrl }).toString()}`
-        : icsUrl;
 
-      const res = await fetch(sourceUrl);
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.message || `HTTP ${res.status}`);
-      }
-      const text = await res.text();
-      const parsed = parseIcs(text);
-      // Keep only future/ongoing events, sorted by start
-      const now = Date.now();
-      const upcoming = parsed
-        .filter((e) => {
-          // For all-day events without an explicit end, treat as ending at midnight the next day
-          const end = e.end ?? (e.isAllDay
-            ? new Date(e.start.getFullYear(), e.start.getMonth(), e.start.getDate() + 1)
-            : e.start);
-          return end.getTime() >= now;
+    try {
+      const settled = await Promise.allSettled(
+        sources.map(async (source) => {
+          const text = await fetchIcsTextWithFallback(source, calendarProxyEndpoint);
+          return parseIcs(text, source);
         })
-        .sort((a, b) => a.start - b.start);
-      setEvents(upcoming);
+      );
+
+      const nextEvents = [];
+      const failures = [];
+
+      settled.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          nextEvents.push(...result.value);
+          return;
+        }
+
+        failures.push(`${getSourceLabel(sources[index], index)}: ${result.reason?.message || 'Failed to load'}`);
+      });
+
+      const deduped = [];
+      const seen = new Set();
+      nextEvents
+        .sort((a, b) => a.start - b.start)
+        .forEach((event) => {
+          const dedupeKey = `${event.summary}|${event.start.toISOString()}|${event.end.toISOString()}`;
+          if (seen.has(dedupeKey)) return;
+          seen.add(dedupeKey);
+          deduped.push(event);
+        });
+
+      setEvents(deduped);
+
+      if (failures.length > 0 && deduped.length > 0) {
+        setError(`${failures[0]} (showing loaded events from other feeds)`);
+      } else if (failures.length > 0) {
+        throw new Error(failures[0]);
+      }
     } catch (e) {
-      // TypeError is commonly caused by browser/network policy failures.
       if (e instanceof TypeError) {
         setError('Unable to fetch calendar events. Check URL accessibility and try again.');
       } else {
-        setError(e.message);
+        setError(e.message || 'Failed to load calendar events.');
       }
     } finally {
       setLoading(false);
     }
-  }, [icsUrl, calendarProxyEndpoint]);
+  }, [sources, calendarProxyEndpoint]);
 
-  // Fetch on mount / URL change, then refresh on interval
   useEffect(() => {
+    if (isQuietHours) {
+      setLoading(false);
+      return undefined;
+    }
+
     fetchEvents();
     const id = setInterval(fetchEvents, normalizedPollIntervalMs);
     return () => clearInterval(id);
-  }, [fetchEvents, normalizedPollIntervalMs]);
+  }, [fetchEvents, normalizedPollIntervalMs, isQuietHours]);
 
-  const formatEventDate = (event) => {
-    if (!event.start || isNaN(event.start)) return '';
-    return event.start.toLocaleDateString(navigator.language, { weekday: 'short', month: 'short', day: 'numeric' });
-  };
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setNowMs(Date.now());
+    }, 60 * 1000);
 
-  const formatEventTime = (event) => {
+    return () => clearInterval(tick);
+  }, []);
+
+  const viewMonth = useMemo(() => atStartOfMonth(new Date(nowMs)), [nowMs]);
+
+  const monthGrid = useMemo(() => buildMonthGrid(viewMonth), [viewMonth]);
+  const eventsByDate = useMemo(() => mapEventsByDate(events), [events]);
+
+  const sidebarEvents = useMemo(() => {
+    const now = new Date(nowMs);
+    const todayStart = atStartOfDay(now);
+
+    return events
+      .filter((event) => {
+        const eventStartDay = atStartOfDay(event.start);
+        return eventStartDay.getTime() === todayStart.getTime() && event.end.getTime() >= nowMs;
+      })
+      .sort((a, b) => a.start - b.start)
+      .slice(0, 20);
+  }, [events, nowMs]);
+
+  const formatTime = (event) => {
     if (event.isAllDay) return 'All day';
-    if (!event.start || isNaN(event.start)) return '';
-    return event.start.toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
+    return event.start.toLocaleTimeString(navigator.language, {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
   };
-
-  // Show the next 10 upcoming events
-  const upcomingEvents = events.slice(0, 10);
 
   return (
-    <Widget title="Calendar" widgetType="calendar" showFade={showFade}>
-      {!icsUrl ? (
+    <Widget title="Calendar" widgetType="calendar" showFade={showFade} onRefresh={fetchEvents}>
+      {sources.length === 0 ? (
         <Typography sx={{ fontSize: '0.75rem', color: '#666666', textAlign: 'center' }}>
-          Add a calendar ICS URL in settings to show events
+          Add at least one calendar ICS URL in settings to show events
         </Typography>
       ) : loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 1 }}>
@@ -163,37 +406,140 @@ export const Calendar = ({ icsUrl, pollIntervalMinutes = 30, showFade = false })
         <Typography sx={{ fontSize: '0.7rem', color: '#f44336', textAlign: 'center' }}>
           {error}
         </Typography>
-      ) : upcomingEvents.length === 0 ? (
-        <Typography sx={{ fontSize: '0.75rem', color: '#666666', textAlign: 'center' }}>
-          No upcoming events
-        </Typography>
       ) : (
-        <Box>
-          <Typography
+        <Stack spacing={1.5} sx={{ height: '100%' }}>
+          <Box
             sx={{
-              fontSize: '0.7rem',
-              color: '#888888',
-              mb: 1.25,
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: '0.95fr 1.25fr' },
+              gap: 1.25,
+              minHeight: 0,
+              flex: 1,
             }}
           >
-            Upcoming Events
-          </Typography>
-          {upcomingEvents.map((event, i) => (
-            <Box key={event.id || i} sx={{ mb: 1.1 }}>
-              <Typography
-                sx={{ fontSize: '0.75rem', color: '#ffffff', fontWeight: 500, lineHeight: 1.3 }}
-              >
-                {event.summary}
-              </Typography>
-              <Typography sx={{ fontSize: '0.65rem', color: '#90caf9' }}>
-                {formatEventDate(event)} · {formatEventTime(event)}
-              </Typography>
+            <Box
+              sx={{
+                p: 0,
+              }}
+            >
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 0.4, mb: 0.5 }}>
+                {WEEKDAY_LABELS.map((label) => (
+                  <Typography
+                    key={label}
+                    sx={{
+                      textAlign: 'center',
+                      fontSize: '0.62rem',
+                      color: '#888888',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {label}
+                  </Typography>
+                ))}
+              </Box>
+
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 0.4 }}>
+                {monthGrid.map((cell) => {
+                  if (cell.isEmpty) {
+                    return <Box key={cell.key} sx={{ minHeight: 24 }} />;
+                  }
+
+                  const dayEvents = eventsByDate[cell.key] || [];
+
+                  return (
+                    <Box
+                      key={cell.key}
+                      sx={{
+                        minHeight: 24,
+                        borderRadius: '7px',
+                        px: 0.35,
+                        py: 0.2,
+                        bgcolor: cell.isToday ? 'rgba(255,255,255,0.08)' : 'transparent',
+                        border: cell.isToday ? '1px solid rgba(144,202,249,0.7)' : '1px solid transparent',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <Typography
+                        sx={{
+                          fontSize: '0.62rem',
+                          color: '#e0e0e0',
+                          fontWeight: cell.isToday ? 700 : 500,
+                          lineHeight: 1,
+                        }}
+                      >
+                        {cell.date.getDate()}
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.22, minHeight: 6, mt: 0.2 }}>
+                        {dayEvents.length > 0 && (
+                          <Box
+                            sx={{
+                              width: 4,
+                              height: 4,
+                              borderRadius: '50%',
+                              bgcolor: '#90caf9',
+                            }}
+                          />
+                        )}
+                      </Box>
+                    </Box>
+                  );
+                })}
+              </Box>
             </Box>
-          ))}
-        </Box>
+
+            <Box
+              sx={{
+                p: 0,
+              }}
+            >
+              <Typography
+                sx={{
+                  fontSize: '0.7rem',
+                  color: '#888888',
+                  mb: 0.9,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.07em',
+                }}
+              >
+                Today's Events
+              </Typography>
+
+              {sidebarEvents.length === 0 ? (
+                <Typography sx={{ fontSize: '0.72rem', color: '#8a8a8a' }}>
+                  No more events today
+                </Typography>
+              ) : (
+                sidebarEvents.map((event) => (
+                  <Box
+                    key={event.id}
+                    sx={{
+                      py: 0.45,
+                      borderBottom: '1px solid rgba(255,255,255,0.06)',
+                      '&:last-of-type': {
+                        borderBottom: 'none',
+                      },
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: '0.72rem',
+                        color: '#f5f5f5',
+                        lineHeight: 1.4,
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      {`${formatTime(event)} - ${event.summary}`}
+                    </Typography>
+                  </Box>
+                ))
+              )}
+            </Box>
+          </Box>
+        </Stack>
       )}
     </Widget>
   );

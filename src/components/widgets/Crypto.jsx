@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Box, Typography } from '@mui/material';
 import { Widget } from '../Widget';
 import { useBackendService } from '../../hooks/useBackendService';
+import { useQuietHours } from '../../hooks/useQuietHours';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -26,6 +27,7 @@ export const Crypto = ({ coins = ['bitcoin', 'ethereum'], pollIntervalMinutes = 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const pollIntervalMs = clamp(Number(pollIntervalMinutes), 1, 1440) * 60 * 1000;
+  const { isQuietHours } = useQuietHours();
 
   const validCoins = coins.filter((c) => c && c.trim());
   const backendService = useBackendService(
@@ -34,6 +36,60 @@ export const Crypto = ({ coins = ['bitcoin', 'ethereum'], pollIntervalMinutes = 
     pollIntervalMinutes,
     usePremium
   );
+
+  const fetchPrices = useCallback(async () => {
+    if (validCoins.length === 0) {
+      setError('No coins configured');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const ids = validCoins.map((c) => encodeURIComponent(c.trim().toLowerCase())).join(',');
+      const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`CoinGecko API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const results = validCoins
+        .map((coinId) => {
+          const id = coinId.trim().toLowerCase();
+          const info = data[id];
+          if (!info) return null;
+          return {
+            id,
+            symbol: getCoinSymbol(id),
+            price: info.usd,
+            change24h: info.usd_24h_change,
+            change24hUsd:
+              info.usd != null && info.usd_24h_change != null
+                ? info.usd - (info.usd / (1 + info.usd_24h_change / 100))
+                : null,
+          };
+        })
+        .filter(Boolean);
+
+      setPrices(results);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [validCoins]);
+
+  const handleRefresh = useCallback(() => {
+    if (usePremium) {
+      backendService.refetch(true);
+      return;
+    }
+
+    fetchPrices();
+  }, [usePremium, backendService, fetchPrices]);
 
   useEffect(() => {
     // Use backend service if premium
@@ -52,50 +108,16 @@ export const Crypto = ({ coins = ['bitcoin', 'ethereum'], pollIntervalMinutes = 
       return;
     }
 
-    const fetchPrices = async () => {
-      try {
-        setLoading(true);
-        const ids = validCoins.map((c) => encodeURIComponent(c.trim().toLowerCase())).join(',');
-        const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
-        const response = await fetch(url);
-
-        if (!response.ok) {
-          throw new Error(`CoinGecko API error: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const results = validCoins
-          .map((coinId) => {
-            const id = coinId.trim().toLowerCase();
-            const info = data[id];
-            if (!info) return null;
-            return {
-              id,
-              symbol: getCoinSymbol(id),
-              price: info.usd,
-              change24h: info.usd_24h_change,
-              change24hUsd:
-                info.usd != null && info.usd_24h_change != null
-                  ? info.usd - (info.usd / (1 + info.usd_24h_change / 100))
-                  : null,
-            };
-          })
-          .filter(Boolean);
-
-        setPrices(results);
-        setError(null);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (isQuietHours) {
+      setLoading(false);
+      return;
+    }
 
     fetchPrices();
     const interval = setInterval(fetchPrices, pollIntervalMs);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [usePremium, pollIntervalMs, JSON.stringify(coins), backendService.data, backendService.loading, backendService.error]);
+  }, [usePremium, pollIntervalMs, isQuietHours, fetchPrices, JSON.stringify(coins), backendService.data, backendService.loading, backendService.error]);
 
   const formatPrice = (price) => {
     if (price == null) return '—';
@@ -117,7 +139,7 @@ export const Crypto = ({ coins = ['bitcoin', 'ethereum'], pollIntervalMinutes = 
   };
 
   return (
-    <Widget widgetType="crypto" showFade={showFade}>
+    <Widget widgetType="crypto" showFade={showFade} onRefresh={handleRefresh}>
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         {loading && (
           <Typography sx={{ color: '#888888' }}>Loading prices...</Typography>

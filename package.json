@@ -16,6 +16,7 @@
     "@mui/icons-material": "^7.3.9",
     "@mui/material": "^7.3.9",
     "aws-amplify": "^6.16.3",
+    "ical.js": "^2.2.1",
     "neko-ts": "^0.0.7",
     "oidc-client-ts": "^3.5.0",
     "react": "^19.2.4",

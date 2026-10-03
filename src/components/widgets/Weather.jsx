@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import { Widget } from '../Widget';
 import { useBackendService } from '../../hooks/useBackendService';
+import { useQuietHours } from '../../hooks/useQuietHours';
 import WbSunnyOutlinedIcon from '@mui/icons-material/WbSunnyOutlined';
 import CloudOutlinedIcon from '@mui/icons-material/CloudOutlined';
 import WaterDropOutlinedIcon from '@mui/icons-material/WaterDropOutlined';
@@ -28,6 +29,7 @@ export const Weather = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const normalizedPollIntervalMs = clamp(Number(pollIntervalMinutes), 1, 1440) * 60 * 1000;
+  const { isQuietHours } = useQuietHours();
 
   const backendService = useBackendService(
     '/v1/services/weather',
@@ -35,6 +37,59 @@ export const Weather = ({
     pollIntervalMinutes,
     usePremium
   );
+
+  const fetchWeather = useCallback(async () => {
+    if (!apiKey || !location) {
+      setError('API key or location not configured');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const unitsMap = {
+        C: 'metric',
+        F: 'imperial',
+      };
+      const units = unitsMap[tempUnit] || 'metric';
+
+      const encodedLocation = encodeURIComponent(location);
+      const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?q=${encodedLocation}&appid=${apiKey}&units=${units}`;
+      const weatherResponse = await fetch(weatherUrl);
+
+      if (!weatherResponse.ok) {
+        throw new Error('Failed to fetch weather');
+      }
+
+      const weatherData = await weatherResponse.json();
+      setWeather(weatherData);
+
+      const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?q=${encodedLocation}&appid=${apiKey}&units=${units}`;
+      const forecastResponse = await fetch(forecastUrl);
+
+      if (forecastResponse.ok) {
+        const forecastData = await forecastResponse.json();
+        setForecast(forecastData);
+      }
+
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+      setWeather(null);
+      setForecast(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [apiKey, location, tempUnit]);
+
+  const handleRefresh = useCallback(() => {
+    if (usePremium) {
+      backendService.refetch(true);
+      return;
+    }
+
+    fetchWeather();
+  }, [usePremium, backendService, fetchWeather]);
 
   useEffect(() => {
     if (usePremium) {
@@ -58,45 +113,10 @@ export const Weather = ({
       return;
     }
 
-    const fetchWeather = async () => {
-      try {
-        setLoading(true);
-        const unitsMap = {
-          'C': 'metric',
-          'F': 'imperial',
-        };
-        const units = unitsMap[tempUnit] || 'metric';
-        
-        // Fetch current weather
-        const encodedLocation = encodeURIComponent(location);
-        const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?q=${encodedLocation}&appid=${apiKey}&units=${units}`;
-        const weatherResponse = await fetch(weatherUrl);
-        
-        if (!weatherResponse.ok) {
-          throw new Error('Failed to fetch weather');
-        }
-        
-        const weatherData = await weatherResponse.json();
-        setWeather(weatherData);
-        
-        // Fetch forecast
-        const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?q=${encodedLocation}&appid=${apiKey}&units=${units}`;
-        const forecastResponse = await fetch(forecastUrl);
-        
-        if (forecastResponse.ok) {
-          const forecastData = await forecastResponse.json();
-          setForecast(forecastData);
-        }
-        
-        setError(null);
-      } catch (err) {
-        setError(err.message);
-        setWeather(null);
-        setForecast(null);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (isQuietHours) {
+      setLoading(false);
+      return;
+    }
 
     fetchWeather();
     const interval = setInterval(fetchWeather, normalizedPollIntervalMs);
@@ -107,6 +127,8 @@ export const Weather = ({
     location,
     tempUnit,
     normalizedPollIntervalMs,
+    isQuietHours,
+    fetchWeather,
     backendService.data,
     backendService.loading,
     backendService.error,
@@ -201,7 +223,7 @@ export const Weather = ({
   };
 
   return (
-    <Widget widgetType="weather" showFade={showFade}>
+    <Widget widgetType="weather" showFade={showFade} onRefresh={handleRefresh}>
       {loading && <Typography sx={{ color: '#ffffff' }}>Loading weather...</Typography>}
       {error && <Typography sx={{ color: '#ff6b6b' }}>{error}</Typography>}
       {weather && (

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
   Autocomplete,
   Box,
@@ -17,6 +17,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { SPORTS_LEAGUES } from './widgets/Sports';
+import { WidgetContext } from '../context/WidgetContext';
 
 const FALLBACK_CITIES = [
   'New York, New York',
@@ -90,6 +91,7 @@ const switchStyles = {
 };
 
 export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange, isPremium = false }) => {
+  const { updateSettings } = useContext(WidgetContext);
   const [citySuggestions, setCitySuggestions] = useState([]);
   const [cityLoading, setCityLoading] = useState(false);
   const [draggedTickerIndex, setDraggedTickerIndex] = useState(null);
@@ -291,6 +293,18 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange, isPrem
     />
   );
 
+  const rememberIcsUrlInSelection = (url) => {
+    const normalizedUrl = String(url || '').trim();
+    if (!normalizedUrl) return;
+
+    const existing = Array.isArray(settings.calendarSelectedIcsUrls)
+      ? settings.calendarSelectedIcsUrls
+      : [];
+    if (existing.includes(normalizedUrl)) return;
+
+    updateSetting('calendarSelectedIcsUrls', [...existing, normalizedUrl]);
+  };
+
   switch (widgetType) {
     case 'clock':
       return (
@@ -369,16 +383,127 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange, isPrem
     case 'calendar':
       return (
         <Stack spacing={2}>
-          <TextField
-            fullWidth
-            label="Calendar ICS URL"
-            type="text"
+          <Autocomplete
+            freeSolo
+            options={Array.isArray(settings.calendarIcsHistory) ? settings.calendarIcsHistory : []}
             value={settings.icsUrl || ''}
-            onChange={(event) => updateSetting('icsUrl', event.target.value)}
-            placeholder="https://calendar.google.com/calendar/ical/.../basic.ics"
-            variant="outlined"
-            sx={fieldStyles}
+            inputValue={settings.icsUrl || ''}
+            onChange={(event, newValue) => {
+              const nextValue = String(newValue || '').trim();
+              updateSetting('icsUrl', nextValue);
+              rememberIcsUrlInSelection(nextValue);
+            }}
+            onInputChange={(event, newInputValue) => updateSetting('icsUrl', newInputValue)}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                fullWidth
+                label="Calendar ICS URL"
+                type="text"
+                placeholder="https://calendar.google.com/calendar/ical/.../basic.ics"
+                helperText="Previously used links are remembered and appear as suggestions"
+                variant="outlined"
+                sx={{
+                  ...fieldStyles,
+                  '& .MuiFormHelperText-root': { color: '#999999' },
+                }}
+              />
+            )}
+            slotProps={{
+              paper: {
+                sx: {
+                  bgcolor: '#1a1a1a',
+                  color: '#ffffff',
+                  '& .MuiAutocomplete-listbox': {
+                    '& li': {
+                      padding: '8px 16px',
+                      '&[aria-selected="true"]': {
+                        bgcolor: '#2196f3',
+                      },
+                      '&:hover': {
+                        bgcolor: '#2196f3',
+                      },
+                    },
+                  },
+                },
+              },
+            }}
           />
+          <FormControl variant="outlined">
+            <InputLabel sx={{ color: '#cccccc' }}>Feed Mode</InputLabel>
+            <Select
+              value={settings.calendarMergeFeeds ? 'merge' : 'single'}
+              onChange={(event) => updateSetting('calendarMergeFeeds', event.target.value === 'merge')}
+              label="Feed Mode"
+              sx={selectStyles}
+              MenuProps={menuProps}
+            >
+              <MenuItem value="single">Single feed (ICS URL above)</MenuItem>
+              <MenuItem value="merge">Merge selected remembered feeds</MenuItem>
+            </Select>
+          </FormControl>
+          <Autocomplete
+            multiple
+            freeSolo
+            options={Array.isArray(settings.calendarIcsHistory) ? settings.calendarIcsHistory : []}
+            value={Array.isArray(settings.calendarSelectedIcsUrls) ? settings.calendarSelectedIcsUrls : []}
+            onChange={(event, newValue) => {
+              const normalized = Array.from(new Set(newValue.map((item) => String(item || '').trim()).filter(Boolean)));
+              updateSetting('calendarSelectedIcsUrls', normalized);
+              if (!settings.icsUrl && normalized[0]) {
+                updateSetting('icsUrl', normalized[0]);
+              }
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Remembered ICS Sources"
+                placeholder="Add or select one or more ICS links"
+                helperText="Used when Feed Mode is set to merge"
+                variant="outlined"
+                sx={{
+                  ...fieldStyles,
+                  '& .MuiFormHelperText-root': { color: '#999999' },
+                }}
+              />
+            )}
+            slotProps={{
+              paper: {
+                sx: {
+                  bgcolor: '#1a1a1a',
+                  color: '#ffffff',
+                  '& .MuiAutocomplete-listbox': {
+                    '& li': {
+                      padding: '8px 16px',
+                      '&[aria-selected="true"]': {
+                        bgcolor: '#2196f3',
+                      },
+                      '&:hover': {
+                        bgcolor: '#2196f3',
+                      },
+                    },
+                  },
+                },
+              },
+            }}
+          />
+          <Button
+            variant="outlined"
+            onClick={() => {
+              updateSettings({ calendarIcsHistory: [] });
+              updateSetting('calendarIcsHistory', []);
+              updateSetting('calendarSelectedIcsUrls', []);
+            }}
+            disabled={!Array.isArray(settings.calendarIcsHistory) || settings.calendarIcsHistory.length === 0}
+            sx={{
+              justifyContent: 'flex-start',
+              borderColor: '#555555',
+              color: '#cccccc',
+              '&:hover': { borderColor: '#777777', bgcolor: 'rgba(255,255,255,0.04)' },
+            }}
+          >
+            Clear remembered ICS links
+          </Button>
           {renderPollingField(
             'Poll Interval (Minutes)',
             'calendarPollIntervalMinutes',

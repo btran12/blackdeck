@@ -153,6 +153,8 @@ export const Dashboard = () => {
       return (
         <WidgetComponent
           icsUrl={widgetSettings.icsUrl}
+          icsUrls={widgetSettings.calendarSelectedIcsUrls || []}
+          mergeFeeds={Boolean(widgetSettings.calendarMergeFeeds)}
           pollIntervalMinutes={widgetSettings.calendarPollIntervalMinutes}
           showFade={widgetSettings.showFade}
         />

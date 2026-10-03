@@ -11,6 +11,77 @@ import {
 
 export const WidgetContext = createContext();
 
+const parseStoredArray = (rawValue) => {
+  if (!rawValue) return [];
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const normalizeIcsUrl = (value) => String(value || '').trim();
+
+const normalizeIcsHistory = (history) => {
+  if (!Array.isArray(history)) return [];
+
+  const seen = new Set();
+  const normalized = [];
+
+  history.forEach((item) => {
+    const url = normalizeIcsUrl(item);
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    normalized.push(url);
+  });
+
+  return normalized.slice(0, 20);
+};
+
+const appendIcsHistory = (history, icsUrl) => {
+  const url = normalizeIcsUrl(icsUrl);
+  if (!url) return normalizeIcsHistory(history);
+
+  const existing = normalizeIcsHistory(history).filter((item) => item !== url);
+  return [url, ...existing].slice(0, 20);
+};
+
+const collectIcsUrlsFromWidgetSettings = (layoutWidgets, widgetSettingsMap) => {
+  const urls = [];
+
+  layoutWidgets.forEach((widgetType, position) => {
+    if (widgetType !== 'calendar') return;
+
+    const icsUrl = normalizeIcsUrl(widgetSettingsMap?.[position]?.icsUrl);
+    if (icsUrl) {
+      urls.push(icsUrl);
+    }
+
+    const selectedUrls = Array.isArray(widgetSettingsMap?.[position]?.calendarSelectedIcsUrls)
+      ? widgetSettingsMap[position].calendarSelectedIcsUrls
+      : [];
+    selectedUrls.forEach((item) => {
+      const selected = normalizeIcsUrl(item);
+      if (selected) {
+        urls.push(selected);
+      }
+    });
+  });
+
+  return normalizeIcsHistory(urls);
+};
+
+const persistSettingItem = (key, value) => {
+  if (Array.isArray(value)) {
+    localStorage.setItem(key, JSON.stringify(value));
+    return;
+  }
+
+  localStorage.setItem(key, value ?? '');
+};
+
 const getInitialSettings = () => ({
   openweatherApiKey: localStorage.getItem('openweatherApiKey') || '',
   newsApiKey: localStorage.getItem('newsApiKey') || '',
@@ -21,7 +92,11 @@ const getInitialSettings = () => ({
   tempUnit: localStorage.getItem('tempUnit') || 'F',
   clockFormat: localStorage.getItem('clockFormat') || '24h',
   icsUrl: localStorage.getItem('icsUrl') || '',
+  calendarIcsHistory: normalizeIcsHistory(parseStoredArray(localStorage.getItem('calendarIcsHistory'))),
   complimentsConfigUrl: localStorage.getItem('complimentsConfigUrl') || '',
+  quietHoursEnabled: localStorage.getItem('quietHoursEnabled') === 'true',
+  quietHoursStart: localStorage.getItem('quietHoursStart') || '23:00',
+  quietHoursEnd: localStorage.getItem('quietHoursEnd') || '06:00',
   fontFamily: localStorage.getItem('fontFamily') || DEFAULT_FONT_FAMILY,
 });
 
@@ -132,7 +207,7 @@ export const WidgetProvider = ({ children }) => {
     setSettings(prev => {
       const updated = { ...prev, ...newSettings };
       Object.keys(updated).forEach(key => {
-        localStorage.setItem(key, updated[key]);
+        persistSettingItem(key, updated[key]);
       });
       return updated;
     });
@@ -162,15 +237,24 @@ export const WidgetProvider = ({ children }) => {
     localStorage.setItem('layout', JSON.stringify(normalizedLayout));
     localStorage.setItem('layoutPreset', normalizedPreset);
 
+    const nextWidgetSettings = buildWidgetSettingsForLayout(normalizedLayout, newWidgetSettings, newSettings, fadeSettings);
+
     setSettings(prev => {
-      const updated = { ...prev, ...newSettings };
+      const merged = { ...prev, ...newSettings };
+      const rememberedIcsUrls = collectIcsUrlsFromWidgetSettings(normalizedLayout, nextWidgetSettings);
+      const updated = {
+        ...merged,
+        calendarIcsHistory: normalizeIcsHistory([
+          ...(merged.calendarIcsHistory || []),
+          ...rememberedIcsUrls,
+        ]),
+      };
       Object.keys(updated).forEach(key => {
-        localStorage.setItem(key, updated[key]);
+        persistSettingItem(key, updated[key]);
       });
       return updated;
     });
 
-    const nextWidgetSettings = buildWidgetSettingsForLayout(normalizedLayout, newWidgetSettings, newSettings, fadeSettings);
     setWidgetSettings(nextWidgetSettings);
     localStorage.setItem('widgetSettings', JSON.stringify(nextWidgetSettings));
 
@@ -219,6 +303,25 @@ export const WidgetProvider = ({ children }) => {
 
     setLayout({ widgets: nextLayout, preset: layout.preset });
     setWidgetSettings(normalizedWidgetSettings);
+
+    if (widgetType === 'calendar') {
+      setSettings((prev) => {
+        const selectedUrls = Array.isArray(newWidgetSettings?.calendarSelectedIcsUrls)
+          ? newWidgetSettings.calendarSelectedIcsUrls
+          : [];
+
+        let history = appendIcsHistory(prev.calendarIcsHistory, newWidgetSettings?.icsUrl);
+        history = normalizeIcsHistory([...history, ...selectedUrls]);
+
+        const nextSettings = {
+          ...prev,
+          calendarIcsHistory: history,
+        };
+        persistSettingItem('calendarIcsHistory', history);
+        return nextSettings;
+      });
+    }
+
     localStorage.setItem('layout', JSON.stringify(nextLayout));
     localStorage.setItem('layoutPreset', layout.preset);
     localStorage.setItem('widgetSettings', JSON.stringify(normalizedWidgetSettings));

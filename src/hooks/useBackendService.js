@@ -1,6 +1,7 @@
 import { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { getServiceEndpoint } from '../config/endpoints';
+import { useQuietHours } from './useQuietHours';
 
 /**
  * Custom hook for calling backend premium services
@@ -14,6 +15,7 @@ import { getServiceEndpoint } from '../config/endpoints';
  */
 export const useBackendService = (endpoint, queryParams = {}, pollIntervalMinutes = 5, enabled = true) => {
   const auth = useContext(AuthContext);
+  const { isQuietHours } = useQuietHours();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -34,10 +36,15 @@ export const useBackendService = (endpoint, queryParams = {}, pollIntervalMinute
     return queryString ? `${baseEndpoint}?${queryString}` : baseEndpoint;
   };
 
-  const fetchData = async () => {
+  const fetchData = async (force = false) => {
     if (!enabled) {
       setLoading(false);
       setError(null);
+      return;
+    }
+
+    if (!force && isQuietHours) {
+      setLoading(false);
       return;
     }
 
@@ -109,10 +116,15 @@ export const useBackendService = (endpoint, queryParams = {}, pollIntervalMinute
       return;
     }
 
+    if (isQuietHours) {
+      setLoading(false);
+      return;
+    }
+
     fetchData();
     const interval = setInterval(fetchData, normalizedPollIntervalMs);
     return () => clearInterval(interval);
-  }, [enabled, endpoint, JSON.stringify(queryParams), pollIntervalMinutes, auth.isAuthenticated, auth.user?.accessToken]);
+  }, [enabled, endpoint, JSON.stringify(queryParams), pollIntervalMinutes, auth.isAuthenticated, auth.user?.accessToken, isQuietHours]);
 
   return {
     data,

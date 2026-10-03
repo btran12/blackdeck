@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import { Widget } from '../Widget';
 import { useBackendService } from '../../hooks/useBackendService';
+import { useQuietHours } from '../../hooks/useQuietHours';
 import EventNoteOutlinedIcon from '@mui/icons-material/EventNoteOutlined';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -27,6 +28,7 @@ export const Holidays = ({ apiKey = '', pollIntervalMinutes = 720, showFade = fa
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const pollIntervalMs = clamp(Number(pollIntervalMinutes), 1, 1440) * 60 * 1000;
+  const { isQuietHours } = useQuietHours();
 
   const backendService = useBackendService(
     '/v1/services/holidays',
@@ -34,6 +36,50 @@ export const Holidays = ({ apiKey = '', pollIntervalMinutes = 720, showFade = fa
     pollIntervalMinutes,
     usePremium
   );
+
+  const fetchHolidays = useCallback(async () => {
+    if (!apiKey) {
+      setError('API key not configured');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch(
+        'https://api.api-ninjas.com/v1/publicholidays?country=US',
+        {
+          headers: {
+            'X-Api-Key': apiKey,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch holidays');
+      }
+
+      const data = await response.json();
+
+      setHolidays(getUpcomingHolidays(data));
+      setError(null);
+    } catch (err) {
+      console.error('Holiday fetch error:', err);
+      setError(err.message);
+      setHolidays([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [apiKey]);
+
+  const handleRefresh = useCallback(() => {
+    if (usePremium) {
+      backendService.refetch(true);
+      return;
+    }
+
+    fetchHolidays();
+  }, [usePremium, backendService, fetchHolidays]);
 
   useEffect(() => {
     // Use backend service if premium
@@ -52,39 +98,15 @@ export const Holidays = ({ apiKey = '', pollIntervalMinutes = 720, showFade = fa
       return;
     }
 
-    const fetchHolidays = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(
-          `https://api.api-ninjas.com/v1/publicholidays?country=US`,
-          {
-            headers: {
-              'X-Api-Key': apiKey,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch holidays');
-        }
-
-        const data = await response.json();
-
-        setHolidays(getUpcomingHolidays(data));
-        setError(null);
-      } catch (err) {
-        console.error('Holiday fetch error:', err);
-        setError(err.message);
-        setHolidays([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (isQuietHours) {
+      setLoading(false);
+      return;
+    }
 
     fetchHolidays();
     const interval = setInterval(fetchHolidays, pollIntervalMs);
     return () => clearInterval(interval);
-  }, [usePremium, apiKey, pollIntervalMs, backendService.data, backendService.loading, backendService.error]);
+  }, [usePremium, apiKey, pollIntervalMs, isQuietHours, fetchHolidays, backendService.data, backendService.loading, backendService.error]);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -102,7 +124,7 @@ export const Holidays = ({ apiKey = '', pollIntervalMinutes = 720, showFade = fa
   };
 
   return (
-    <Widget widgetType="holidays" showFade={showFade}>
+    <Widget widgetType="holidays" showFade={showFade} onRefresh={handleRefresh}>
       {loading && <Typography sx={{ color: '#ffffff' }}>Loading holidays...</Typography>}
       {error && <Typography sx={{ color: '#ff6b6b' }}>Error: {error}</Typography>}
       {!loading && !error && holidays.length === 0 && (

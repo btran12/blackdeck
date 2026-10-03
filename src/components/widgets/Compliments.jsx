@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import { Widget } from '../Widget';
+import { useQuietHours } from '../../hooks/useQuietHours';
 
 const DEFAULT_CONFIG_URL = `${import.meta.env.BASE_URL}compliments.json`;
 const MESSAGE_ROTATION_MS = 30 * 1000;
@@ -99,12 +100,21 @@ export const Compliments = ({
   const [error, setError] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFading, setIsFading] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const { isQuietHours } = useQuietHours();
 
   const sourceUrl = resolveConfigUrl(configUrl);
   const timeBucket = getTimeBucket();
   const pollIntervalMs = clamp(Number(pollIntervalMinutes), 1, 1440) * 60 * 1000;
+  const handleRefresh = useCallback(() => {
+    setRefreshTick((value) => value + 1);
+  }, []);
 
   useEffect(() => {
+    if (isQuietHours) {
+      return undefined;
+    }
+
     const parseConfig = (data) => ({
       fallback: Array.isArray(data?.fallback) ? data.fallback : [],
       timeOfDay: data?.timeOfDay && typeof data.timeOfDay === 'object' ? data.timeOfDay : {},
@@ -147,9 +157,14 @@ export const Compliments = ({
     fetchConfig();
     const interval = setInterval(fetchConfig, pollIntervalMs);
     return () => clearInterval(interval);
-  }, [pollIntervalMs, sourceUrl]);
+  }, [pollIntervalMs, sourceUrl, refreshTick, isQuietHours]);
 
   useEffect(() => {
+    if (isQuietHours) {
+      setLoading(false);
+      return undefined;
+    }
+
     const fetchWeather = async () => {
       if (!weatherApiKey || !location) {
         setWeatherCondition('default');
@@ -184,7 +199,7 @@ export const Compliments = ({
     fetchWeather();
     const interval = setInterval(fetchWeather, pollIntervalMs);
     return () => clearInterval(interval);
-  }, [location, pollIntervalMs, weatherApiKey]);
+  }, [location, pollIntervalMs, weatherApiKey, refreshTick, isQuietHours]);
 
   const messages = useMemo(() => {
     const timeMessages = Array.isArray(config.timeOfDay?.[timeBucket]) ? config.timeOfDay[timeBucket] : [];
@@ -226,7 +241,7 @@ export const Compliments = ({
   const activeMessage = messages[currentIndex] || messages[0];
 
   return (
-    <Widget widgetType="compliments" showFade={showFade}>
+    <Widget widgetType="compliments" showFade={showFade} onRefresh={handleRefresh}>
       <Stack sx={{ height: '100%', justifyContent: 'center', textAlign: 'center' }} spacing={2}>
 
         <Typography

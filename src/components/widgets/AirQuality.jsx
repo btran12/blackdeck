@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Box, Typography } from '@mui/material';
 import AirIcon from '@mui/icons-material/Air';
 import { Widget } from '../Widget';
+import { useQuietHours } from '../../hooks/useQuietHours';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -38,6 +39,47 @@ export const AirQuality = ({ apiKey, location, pollIntervalMinutes = 30, showFad
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const pollIntervalMs = clamp(Number(pollIntervalMinutes), 1, 1440) * 60 * 1000;
+  const { isQuietHours } = useQuietHours();
+
+  const fetchAirQuality = useCallback(async () => {
+    if (!apiKey || !location) {
+      setError('API key or location not configured');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const geoUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(location)}&limit=1&appid=${apiKey}`;
+      const geoResponse = await fetch(geoUrl);
+      if (!geoResponse.ok) throw new Error('Geocoding failed');
+      const geoData = await geoResponse.json();
+      if (!Array.isArray(geoData) || geoData.length === 0) {
+        throw new Error(`Location not found: ${location}`);
+      }
+      const { lat, lon } = geoData[0];
+
+      const aqUrl = `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${apiKey}`;
+      const aqResponse = await fetch(aqUrl);
+      if (!aqResponse.ok) throw new Error('Air quality fetch failed');
+      const aqData = await aqResponse.json();
+
+      const item = aqData?.list?.[0];
+      if (!item) throw new Error('No air quality data available');
+
+      setAirData({
+        aqi: item.main.aqi,
+        components: item.components,
+      });
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+      setAirData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [apiKey, location]);
 
   useEffect(() => {
     if (!apiKey || !location) {
@@ -46,52 +88,21 @@ export const AirQuality = ({ apiKey, location, pollIntervalMinutes = 30, showFad
       return;
     }
 
-    const fetchAirQuality = async () => {
-      try {
-        setLoading(true);
-
-        // Step 1: geocode the location string to lat/lon
-        const geoUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(location)}&limit=1&appid=${apiKey}`;
-        const geoResponse = await fetch(geoUrl);
-        if (!geoResponse.ok) throw new Error('Geocoding failed');
-        const geoData = await geoResponse.json();
-        if (!Array.isArray(geoData) || geoData.length === 0) {
-          throw new Error(`Location not found: ${location}`);
-        }
-        const { lat, lon } = geoData[0];
-
-        // Step 2: fetch air pollution data
-        const aqUrl = `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${apiKey}`;
-        const aqResponse = await fetch(aqUrl);
-        if (!aqResponse.ok) throw new Error('Air quality fetch failed');
-        const aqData = await aqResponse.json();
-
-        const item = aqData?.list?.[0];
-        if (!item) throw new Error('No air quality data available');
-
-        setAirData({
-          aqi: item.main.aqi,
-          components: item.components,
-        });
-        setError(null);
-      } catch (err) {
-        setError(err.message);
-        setAirData(null);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (isQuietHours) {
+      setLoading(false);
+      return;
+    }
 
     fetchAirQuality();
     const interval = setInterval(fetchAirQuality, pollIntervalMs);
     return () => clearInterval(interval);
-  }, [apiKey, location, pollIntervalMs]);
+  }, [apiKey, location, pollIntervalMs, isQuietHours, fetchAirQuality]);
 
   const aqiInfo = airData ? getAqiInfo(airData.aqi) : null;
   const comp = airData?.components || {};
 
   return (
-    <Widget widgetType="airquality" showFade={showFade}>
+    <Widget widgetType="airquality" showFade={showFade} onRefresh={fetchAirQuality}>
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         {loading && (
           <Typography sx={{ color: '#888888' }}>Loading air quality...</Typography>

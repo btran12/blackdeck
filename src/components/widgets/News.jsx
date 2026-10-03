@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Box, Typography } from '@mui/material';
 import { Widget } from '../Widget';
 import { useBackendService } from '../../hooks/useBackendService';
+import { useQuietHours } from '../../hooks/useQuietHours';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -11,6 +12,7 @@ export const News = ({ apiKey, currentsApiKey, pollIntervalMinutes = 180, showFa
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isFading, setIsFading] = useState(false);
+  const { isQuietHours } = useQuietHours();
   const pollIntervalMs = clamp(Number(pollIntervalMinutes), 1, 1440) * 60 * 1000;
   const ROTATION_INTERVAL = 15 * 1000; // 15 seconds
   const TARGET_HEADLINES = 30;
@@ -126,54 +128,62 @@ export const News = ({ apiKey, currentsApiKey, pollIntervalMinutes = 180, showFa
     return combined;
   };
 
+  const fetchNews = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      let currentsArticles = [];
+      let redditArticles = [];
+
+      if (usePremium && backendService.data) {
+        currentsArticles = Array.isArray(backendService.data)
+          ? backendService.data
+          : Array.isArray(backendService.data.news)
+            ? backendService.data.news
+            : [];
+      } else if (!usePremium && currentsApiKey) {
+        currentsArticles = await fetchFromCurrentsAPI(currentsApiKey);
+      }
+
+      redditArticles = await fetchFromRedditAPI();
+
+      const combined = mergeArticles(currentsArticles, redditArticles);
+
+      if (combined.length === 0) {
+        setError('No articles found. Check API keys and try again.');
+        setArticles([]);
+      } else {
+        setArticles(combined);
+        setCurrentIndex(0);
+      }
+    } catch (err) {
+      setError(err.message);
+      setArticles([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [usePremium, backendService.data, currentsApiKey]);
+
+  const handleRefresh = useCallback(async () => {
+    if (usePremium) {
+      await backendService.refetch(true);
+    }
+
+    await fetchNews();
+  }, [usePremium, backendService, fetchNews]);
+
   // Fetch news every 180 minutes by default
   useEffect(() => {
-    const fetchNews = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        let currentsArticles = [];
-        let redditArticles = [];
-
-        // Fetch Currents API - either direct (free) or from backend (premium)
-        if (usePremium && backendService.data) {
-          // Currents wraps articles in a `news` property; support array responses too.
-          currentsArticles = Array.isArray(backendService.data)
-            ? backendService.data
-            : Array.isArray(backendService.data.news)
-              ? backendService.data.news
-              : [];
-        } else if (!usePremium && currentsApiKey) {
-          // Free: call Currents API directly if key available
-          currentsArticles = await fetchFromCurrentsAPI(currentsApiKey);
-        }
-
-        // ALWAYS fetch Reddit API (it's free, no auth needed)
-        redditArticles = await fetchFromRedditAPI();
-
-        // Merge results
-        const combined = mergeArticles(currentsArticles, redditArticles);
-
-        if (combined.length === 0) {
-          setError('No articles found. Check API keys and try again.');
-          setArticles([]);
-        } else {
-          setArticles(combined);
-          setCurrentIndex(0);
-        }
-      } catch (err) {
-        setError(err.message);
-        setArticles([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (isQuietHours) {
+      setLoading(false);
+      return;
+    }
 
     fetchNews();
     const pollInterval = setInterval(fetchNews, pollIntervalMs);
     return () => clearInterval(pollInterval);
-  }, [usePremium, currentsApiKey, pollIntervalMs, backendService.data]);
+  }, [pollIntervalMs, fetchNews, isQuietHours]);
 
   // Rotate through headlines every 15 seconds
   useEffect(() => {
@@ -202,7 +212,7 @@ export const News = ({ apiKey, currentsApiKey, pollIntervalMinutes = 180, showFa
     'Unknown source';
 
   return (
-    <Widget title="Top Headlines" widgetType="news" showFade={showFade}>
+    <Widget title="Top Headlines" widgetType="news" showFade={showFade} onRefresh={handleRefresh}>
       {loading && (
         <Typography sx={{ color: '#888888' }}>Loading news...</Typography>
       )}

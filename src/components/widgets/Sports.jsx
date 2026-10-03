@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Box, Typography } from '@mui/material';
 import { Widget } from '../Widget';
+import { useQuietHours } from '../../hooks/useQuietHours';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const UPCOMING_DAYS = 14; // look ahead window
@@ -181,8 +182,19 @@ export const Sports = ({
   const activeLeagues = leagues.filter((l) => LEAGUES[l]);
   const teamFilters = parseTeamFilters(teams);
   const livePollIntervalMs = clamp(Number(livePollIntervalMinutes), 1, 60) * 60 * 1000;
+  const [refreshTick, setRefreshTick] = useState(0);
+  const { isQuietHours } = useQuietHours();
+
+  const handleRefresh = useCallback(() => {
+    setRefreshTick((value) => value + 1);
+  }, []);
 
   useEffect(() => {
+    if (isQuietHours) {
+      setLoading(false);
+      return undefined;
+    }
+
     if (activeLeagues.length === 0) {
       setError('No leagues configured. Open Settings to choose sports leagues.');
       setLoading(false);
@@ -240,14 +252,14 @@ export const Sports = ({
       stopPolling();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeLeagues.join(','), livePollIntervalMs, teams]);
+  }, [activeLeagues.join(','), livePollIntervalMs, teams, refreshTick, isQuietHours]);
 
   const { todayEvents, upcomingEvents } = partitionEvents(events);
   const hasToday = todayEvents.length > 0;
   const hasUpcoming = upcomingEvents.length > 0;
 
   return (
-    <Widget widgetType="sports" showFade={showFade}>
+    <Widget widgetType="sports" showFade={showFade} onRefresh={handleRefresh}>
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
         {loading && (

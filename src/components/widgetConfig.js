@@ -209,6 +209,11 @@ export const createWidgetSettingsForType = (widgetType, defaults = {}) => {
       return {
         widgetType,
         icsUrl: defaults.icsUrl || '',
+        calendarIcsHistory: Array.isArray(defaults.calendarIcsHistory) ? defaults.calendarIcsHistory : [],
+        calendarMergeFeeds: Boolean(defaults.calendarMergeFeeds),
+        calendarSelectedIcsUrls: Array.isArray(defaults.calendarSelectedIcsUrls)
+          ? defaults.calendarSelectedIcsUrls
+          : [],
         calendarPollIntervalMinutes: defaults.calendarPollIntervalMinutes || 30,
         showFade: defaults.showFade ?? DEFAULT_WIDGET_FADE.calendar,
       };
