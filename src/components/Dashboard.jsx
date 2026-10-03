@@ -61,15 +61,25 @@ export const Dashboard = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showSettingsButton, setShowSettingsButton] = useState(false);
   const [hoveredPosition, setHoveredPosition] = useState(null);
+  const [dragSourcePosition, setDragSourcePosition] = useState(null);
+  const [dragOverPosition, setDragOverPosition] = useState(null);
   const [slotEditor, setSlotEditor] = useState({
     open: false,
     position: null,
     widgetType: '',
     settings: null,
   });
-  const { layout, settings, getWidgetSettingsForPosition, saveWidgetConfiguration } = useContext(WidgetContext);
+  const {
+    layout,
+    settings,
+    widgetSettings,
+    getWidgetSettingsForPosition,
+    saveWidgetConfiguration,
+    saveDashboardConfiguration,
+  } = useContext(WidgetContext);
   const { isPremium } = useAuth();
   const settingsButtonHideTimerRef = useRef(null);
+  const suppressNextClickRef = useRef(false);
   const widgets = layout.widgets;
   const activeLayoutPreset = getLayoutPreset(layout.preset);
   const gridRows = activeLayoutPreset.rows;
@@ -296,6 +306,44 @@ export const Dashboard = () => {
     closeSlotEditor();
   };
 
+  const handleWidgetDrop = (fromPosition, toPosition) => {
+    if (
+      fromPosition == null
+      || toPosition == null
+      || fromPosition === toPosition
+      || !widgets[fromPosition]
+    ) {
+      return;
+    }
+
+    const nextLayout = [...widgets];
+    [nextLayout[fromPosition], nextLayout[toPosition]] = [nextLayout[toPosition], nextLayout[fromPosition]];
+
+    const nextWidgetSettings = { ...widgetSettings };
+    const fromSettings = nextWidgetSettings[fromPosition];
+    const toSettings = nextWidgetSettings[toPosition];
+
+    if (fromSettings && nextLayout[toPosition]) {
+      nextWidgetSettings[toPosition] = {
+        ...fromSettings,
+        widgetType: nextLayout[toPosition],
+      };
+    } else {
+      delete nextWidgetSettings[toPosition];
+    }
+
+    if (toSettings && nextLayout[fromPosition]) {
+      nextWidgetSettings[fromPosition] = {
+        ...toSettings,
+        widgetType: nextLayout[fromPosition],
+      };
+    } else {
+      delete nextWidgetSettings[fromPosition];
+    }
+
+    saveDashboardConfiguration(nextLayout, nextWidgetSettings, settings, layout.preset);
+  };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', bgcolor: '#000000', overflow: 'hidden' }}>
       {/* Settings Button - Fixed Position */}
@@ -341,7 +389,47 @@ export const Dashboard = () => {
                 <Box
                   role="button"
                   tabIndex={0}
-                  onClick={() => openSlotEditor(position)}
+                  draggable={Boolean(widgets[position])}
+                  onDragStart={(event) => {
+                    if (!widgets[position]) return;
+
+                    setDragSourcePosition(position);
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', String(position));
+                  }}
+                  onDragOver={(event) => {
+                    if (dragSourcePosition == null) return;
+
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'move';
+                    setDragOverPosition(position);
+                  }}
+                  onDragLeave={() => {
+                    setDragOverPosition((current) => (current === position ? null : current));
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+
+                    const fromText = event.dataTransfer.getData('text/plain');
+                    const fromPosition = Number.parseInt(fromText, 10);
+                    const sourcePosition = Number.isNaN(fromPosition) ? dragSourcePosition : fromPosition;
+
+                    handleWidgetDrop(sourcePosition, position);
+                    setDragSourcePosition(null);
+                    setDragOverPosition(null);
+                    suppressNextClickRef.current = true;
+                    setTimeout(() => {
+                      suppressNextClickRef.current = false;
+                    }, 0);
+                  }}
+                  onDragEnd={() => {
+                    setDragSourcePosition(null);
+                    setDragOverPosition(null);
+                  }}
+                  onClick={() => {
+                    if (suppressNextClickRef.current) return;
+                    openSlotEditor(position);
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
@@ -358,14 +446,18 @@ export const Dashboard = () => {
                     cursor: 'pointer',
                     transition: 'transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease',
                     transform: hoveredPosition === position ? 'translateY(-8px)' : 'translateY(0)',
-                    boxShadow: hoveredPosition === position
-                      ? '0 22px 48px rgba(0, 0, 0, 0.45)'
-                      : '0 0 0 rgba(0, 0, 0, 0)',
                     zIndex: hoveredPosition === position ? 4 : 1,
                     border: '1px solid rgba(255,255,255,0)',
                     borderColor: hoveredPosition === position
                       ? 'rgba(255,255,255,0.95)'
-                      : undefined,
+                      : (dragOverPosition === position
+                        ? 'rgba(33,150,243,0.95)'
+                        : undefined),
+                    boxShadow: dragOverPosition === position
+                      ? '0 0 0 2px rgba(33,150,243,0.45), 0 22px 48px rgba(0, 0, 0, 0.45)'
+                      : (hoveredPosition === position
+                        ? '0 22px 48px rgba(0, 0, 0, 0.45)'
+                        : '0 0 0 rgba(0, 0, 0, 0)'),
                     // bgcolor: widgets[position] ? 'transparent' : 'rgba(255,255,255,0.03)',
                     outline: 'none',
                     '&:focus-visible': {
