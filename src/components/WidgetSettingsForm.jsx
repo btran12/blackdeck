@@ -744,7 +744,7 @@ export const WidgetSettingsForm = ({ widgetType, settings = {}, onChange, isPrem
             <Stack spacing={1}>
               {currentTickers.map((ticker, index) => (
                 <Box
-                  key={`${ticker}-${index}`}
+                  key={index}
                   draggable
                   onDragStart={() => {
                     setDraggedTickerIndex(index);

@@ -161,12 +161,9 @@ const parseIcs = (text, sourceId = 'default') => {
     return [];
   }
 
-  const now = ICAL.Time.now();
-  const rangeStart = now.clone();
-  rangeStart.adjust(-1, 0, 0, 0);
-
-  const rangeEnd = now.clone();
-  rangeEnd.adjust(18, 0, 0, 0);
+  const todayStart = atStartOfDay(new Date());
+  const rangeStart = ICAL.Time.fromJSDate(addDays(todayStart, -1), false);
+  const rangeEnd = ICAL.Time.fromJSDate(addDays(todayStart, 18), false);
 
   const records = [];
   const seen = new Set();
@@ -178,12 +175,16 @@ const parseIcs = (text, sourceId = 'default') => {
     if (!event.startDate) return;
 
     if (event.isRecurring()) {
-      const iterator = event.iterator(rangeStart);
+      const iterator = event.iterator(event.startDate.clone());
       let occurrence = iterator.next();
       let guard = 0;
 
       while (occurrence && guard < 1500) {
         guard += 1;
+        if (occurrence.compare(rangeStart) < 0) {
+          occurrence = iterator.next();
+          continue;
+        }
         if (occurrence.compare(rangeEnd) > 0) break;
 
         const details = event.getOccurrenceDetails(occurrence);
@@ -383,13 +384,21 @@ export const Calendar = ({
       .slice(0, 20);
   }, [events, nowMs]);
 
-  const formatTime = (event) => {
-    if (event.isAllDay) return 'All day';
-    return event.start.toLocaleTimeString(navigator.language, {
+  const formatTimeValue = (date) => {
+    const value = date instanceof Date ? date : new Date(date);
+    if (Number.isNaN(value.getTime())) return '--:--';
+
+    return value.toLocaleTimeString(navigator.language, {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
     });
+  };
+
+  const formatEventTime = (event) => {
+    if (event.isAllDay) return 'All day';
+
+    return formatTimeValue(event.start);
   };
 
   return (
@@ -526,13 +535,24 @@ export const Calendar = ({
                   >
                     <Typography
                       sx={{
-                        fontSize: '0.72rem',
+                        fontSize: '0.7rem',
+                        color: '#9aa4b2',
+                        lineHeight: 1.25,
+                        letterSpacing: '0.01em',
+                      }}
+                    >
+                      {formatEventTime(event)}
+                    </Typography>
+                    <Typography
+                      sx={{
+                        mt: 0.2,
+                        fontSize: '0.74rem',
                         color: '#f5f5f5',
-                        lineHeight: 1.4,
+                        lineHeight: 1.35,
                         wordBreak: 'break-word',
                       }}
                     >
-                      {`${formatTime(event)} - ${event.summary}`}
+                      {event.summary}
                     </Typography>
                   </Box>
                 ))

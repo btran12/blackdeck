@@ -1,8 +1,9 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useContext, useMemo, useRef } from 'react';
 import { Box, Typography } from '@mui/material';
 import { Widget } from '../Widget';
-import { useBackendService } from '../../hooks/useBackendService';
 import { useQuietHours } from '../../hooks/useQuietHours';
+import { AuthContext } from '../../context/AuthContext';
+import { getServiceEndpoint } from '../../config/endpoints';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -15,18 +16,27 @@ export const Stocks = ({ apiKey, tickers = [], pollIntervalMinutes = 5, showFade
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const requestInFlightRef = useRef(false);
   const pollIntervalMs = clamp(Number(pollIntervalMinutes), 1, 1440) * 60 * 1000;
   const { isQuietHours } = useQuietHours();
+  const auth = useContext(AuthContext);
+  const premiumEndpoint = getServiceEndpoint('/v1/services/stocks');
 
-  const validTickers = tickers.filter(t => t && t.trim());
-  const backendService = useBackendService(
-    '/v1/services/stocks',
-    { tickers: validTickers.join(',') },
-    pollIntervalMinutes,
-    usePremium
+  const tickerSignature = tickers
+    .map((ticker) => ticker?.trim())
+    .filter(Boolean)
+    .join('|');
+
+  const validTickers = useMemo(
+    () => (tickerSignature ? tickerSignature.split('|') : []),
+    [tickerSignature]
   );
 
   const fetchQuotes = useCallback(async () => {
+    if (requestInFlightRef.current) {
+      return;
+    }
+
     if (!apiKey) {
       setError('Finnhub API key not configured');
       setLoading(false);
@@ -40,6 +50,7 @@ export const Stocks = ({ apiKey, tickers = [], pollIntervalMinutes = 5, showFade
     }
 
     try {
+      requestInFlightRef.current = true;
       setLoading(true);
       const results = await Promise.all(
         validTickers.map(async (symbol) => {
@@ -60,28 +71,123 @@ export const Stocks = ({ apiKey, tickers = [], pollIntervalMinutes = 5, showFade
     } catch (err) {
       setError(err.message);
     } finally {
+      requestInFlightRef.current = false;
       setLoading(false);
     }
   }, [apiKey, validTickers]);
 
+  const fetchPremiumQuotes = useCallback(async (force = false) => {
+    if (requestInFlightRef.current) {
+      return;
+    }
+
+    if (!force && isQuietHours) {
+      setLoading(false);
+      return;
+    }
+
+    if (!auth.isAuthenticated) {
+      setError('Log in to access this service');
+      setLoading(false);
+      return;
+    }
+
+    const accessToken = auth.user?.accessToken;
+    if (!accessToken) {
+      setError('No access token available');
+      setLoading(false);
+      return;
+    }
+
+    if (!premiumEndpoint) {
+      setError('Service endpoint not configured');
+      setLoading(false);
+      return;
+    }
+
+    if (validTickers.length === 0) {
+      setError('No tickers configured');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      requestInFlightRef.current = true;
+      setLoading(true);
+      const results = await Promise.allSettled(
+        validTickers.map(async (symbol) => {
+          const trimmed = symbol.trim().toUpperCase();
+          const url = `${premiumEndpoint}?ticker=${encodeURIComponent(trimmed)}`;
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || `Failed to fetch ${trimmed}`);
+          }
+
+          const data = await response.json();
+          return {
+            symbol: trimmed,
+            price: data.c,
+            change: data.d,
+            changePercent: data.dp,
+          };
+        })
+      );
+
+      const successfulQuotes = results
+        .filter((result) => result.status === 'fulfilled')
+        .map((result) => result.value);
+
+      if (successfulQuotes.length === 0) {
+        const firstError = results.find((result) => result.status === 'rejected');
+        throw new Error(firstError?.reason?.message || 'Failed to fetch quotes');
+      }
+
+      setQuotes(successfulQuotes);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      requestInFlightRef.current = false;
+      setLoading(false);
+    }
+  }, [auth.isAuthenticated, auth.user?.accessToken, isQuietHours, premiumEndpoint, validTickers]);
+
   const handleRefresh = useCallback(() => {
     if (usePremium) {
-      backendService.refetch(true);
+      fetchPremiumQuotes(true);
       return;
     }
 
     fetchQuotes();
-  }, [usePremium, backendService, fetchQuotes]);
+  }, [usePremium, fetchPremiumQuotes, fetchQuotes]);
 
   useEffect(() => {
     // Use backend service if premium
     if (usePremium) {
-      if (backendService.data) {
-        setQuotes(backendService.data);
+      if (validTickers.length === 0) {
+        setError('No tickers configured');
+        setLoading(false);
+        return;
       }
-      setLoading(backendService.loading);
-      setError(backendService.error);
-      return;
+
+      if (isQuietHours) {
+        setLoading(false);
+        return;
+      }
+
+      fetchPremiumQuotes();
+      const interval = setInterval(() => {
+        if (isWeekday()) fetchPremiumQuotes();
+      }, pollIntervalMs);
+      return () => clearInterval(interval);
     }
 
     if (!apiKey) {
@@ -107,7 +213,7 @@ export const Stocks = ({ apiKey, tickers = [], pollIntervalMinutes = 5, showFade
     }, pollIntervalMs);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [usePremium, apiKey, pollIntervalMs, isQuietHours, fetchQuotes, JSON.stringify(tickers), backendService.data, backendService.loading, backendService.error]);
+  }, [usePremium, apiKey, pollIntervalMs, isQuietHours, fetchPremiumQuotes, fetchQuotes, tickerSignature, auth.isAuthenticated, auth.user?.accessToken, premiumEndpoint]);
 
   const formatPrice = (price) => {
     if (price == null || price === 0) return '—';
