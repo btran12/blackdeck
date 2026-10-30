@@ -54,8 +54,8 @@ A modern, interactive dashboard application built with React and Vite that displ
 
 ```bash
 # Clone the repository
-git clone https://github.com/btran12/react-magicmirror.git
-cd react-magicmirror  # or rename to blackdeck
+git clone https://github.com/btran12/blackdeck
+cd blackdeck  
 
 # Install dependencies
 npm install
